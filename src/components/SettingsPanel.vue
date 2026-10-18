@@ -2,11 +2,11 @@
 import { onMounted, ref } from 'vue'
 import { listModels, pickModel } from '../lib/ollama'
 import { DEFAULT_MODEL_URL, type Settings } from '../composables/useChat'
-import { EDGE_VOICES } from '../composables/useTts'
+import { EDGE_VOICES, type GsvStatus } from '../composables/useTts'
 
 const settings = defineModel<Settings>({ required: true })
-defineProps<{ voices?: SpeechSynthesisVoice[] }>()
-const emit = defineEmits<{ 'reset': [], 'close': [], 'model-file': [file: File], 'export-glb': [], 'preview-voice': [] }>()
+defineProps<{ voices?: SpeechSynthesisVoice[], gsvStatus?: GsvStatus | null }>()
+const emit = defineEmits<{ 'reset': [], 'close': [], 'model-file': [file: File], 'export-glb': [], 'preview-voice': [], 'refresh-gsv': [] }>()
 
 const models = ref<string[]>([])
 const status = ref('')
@@ -109,11 +109,30 @@ onMounted(refresh)
         <label>
           음성 엔진
           <select v-model="settings.tts.provider">
-            <option value="edge">Edge 신경망 음성 (온라인, 무료, 기본)</option>
+            <option value="gsv">AI 음성 모델 (GPT-SoVITS, 로컬, 감정별 목소리)</option>
+            <option value="edge">Edge 신경망 음성 (온라인, 무료)</option>
             <option value="browser">브라우저 내장 음성 (오프라인)</option>
             <option value="openai">OpenAI 호환 서버 (API 키·로컬 서버)</option>
           </select>
         </label>
+
+        <div v-if="settings.tts.provider === 'gsv'" class="gsv">
+          <p>
+            서버:
+            <strong v-if="gsvStatus?.server">✅ 연결됨</strong>
+            <strong v-else>❌ 꺼짐</strong> ({{ gsvStatus?.url ?? 'http://127.0.0.1:9880' }})
+            <button class="ghost" @click="emit('refresh-gsv')">다시 확인</button>
+          </p>
+          <p>
+            보이스 팩:
+            <strong v-if="gsvStatus?.pack">{{ gsvStatus.pack.name }}</strong>
+            <strong v-else>없음 (voices/karina)</strong>
+          </p>
+          <p v-if="gsvStatus?.pack?.credit" class="credit">{{ gsvStatus.pack.credit }}</p>
+          <p v-if="!gsvStatus?.server" class="hint">
+            꺼져 있으면 Edge 음성으로 대신 읽어요. 켜는 방법은 README의 "AI 음성 (GPT-SoVITS)"을 봐 주세요.
+          </p>
+        </div>
 
         <label v-if="settings.tts.provider === 'edge'">
           목소리
@@ -155,7 +174,7 @@ onMounted(refresh)
           빠르기: {{ settings.tts.rate.toFixed(2) }}배
           <input v-model.number="settings.tts.rate" type="range" min="0.7" max="1.5" step="0.05">
         </label>
-        <label v-if="settings.tts.provider !== 'openai'">
+        <label v-if="settings.tts.provider === 'edge' || settings.tts.provider === 'browser'">
           음 높이: {{ settings.tts.pitch > 0 ? '+' : '' }}{{ settings.tts.pitch }}%
           <input v-model.number="settings.tts.pitch" type="range" min="-20" max="20" step="1">
         </label>
@@ -192,4 +211,8 @@ label { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; col
 .tts legend { padding: 0 6px; }
 .check { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
 .tts .inline label { flex: 1; min-width: 0; }
+.gsv p { margin: 0 0 4px; font-size: 0.82rem; color: var(--text-dim); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.gsv strong { color: var(--text); font-weight: 600; }
+.gsv button { padding: 2px 8px; font-size: 0.78rem; }
+.gsv .credit, .gsv .hint { display: block; font-size: 0.75rem; }
 </style>

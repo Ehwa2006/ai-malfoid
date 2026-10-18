@@ -31,8 +31,11 @@ export interface Settings {
 
 export interface TtsSettings {
   enabled: boolean
-  /** edge: 앱에 내장된 Edge 신경망 음성(온라인) / browser: 브라우저 내장 음성(오프라인) / openai: OpenAI 호환 서버 */
-  provider: 'edge' | 'browser' | 'openai'
+  /**
+   * gsv: AI 음성 모델(GPT-SoVITS, 로컬, 감정별 목소리) / edge: 앱에 내장된 Edge 신경망 음성(온라인)
+   * browser: 브라우저 내장 음성(오프라인) / openai: OpenAI 호환 서버
+   */
+  provider: 'gsv' | 'edge' | 'browser' | 'openai'
   edgeVoice: string
   browserVoice: string
   /** 0.5 ~ 2 (1 = 보통) */
@@ -54,7 +57,7 @@ const DEFAULT_SETTINGS: Settings = {
   modelUrl: '',
   tts: {
     enabled: true,
-    provider: 'edge',
+    provider: 'gsv',
     edgeVoice: 'ko-KR-SunHiNeural',
     browserVoice: '',
     rate: 1.05,

@@ -14,7 +14,7 @@ const Avatar3D = defineAsyncComponent(() => import('./components/Avatar3D.vue'))
 const { settings, messages, affection, stage, emotion, isStreaming, error, lastDelta, send, stop, reset, onReply } = useChat()
 
 // 카리나의 대사를 소리 내어 읽는다. 켜져 있으면 입 모양도 목소리를 따라 움직인다.
-const tts = useTts(settings)
+const tts = useTts(settings, emotion)
 onReply(tts)
 const speaking = computed(() => settings.value.tts.enabled ? tts.speaking.value : isStreaming.value)
 const mouthLevel = computed(() => settings.value.tts.enabled ? tts.level : undefined)
@@ -93,6 +93,8 @@ watch(() => messages.value.map(m => m.text.length).join(), async () => {
         v-if="showSettings"
         v-model="settings"
         :voices="tts.voices.value"
+        :gsv-status="tts.gsvStatus.value"
+        @refresh-gsv="tts.refreshGsv()"
         class="settings"
         @preview-voice="tts.preview()"
         @reset="resetAll(); showSettings = false"
@@ -110,7 +112,7 @@ watch(() => messages.value.map(m => m.text.length).join(), async () => {
           :message="m"
           :streaming="isStreaming && i === messages.length - 1 && m.role === 'assistant'"
           :can-speak="settings.tts.enabled && !(isStreaming && i === messages.length - 1)"
-          @speak="tts.say(m.text)"
+          @speak="tts.say(m.text, m.emotion)"
         />
       </div>
 
