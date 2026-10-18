@@ -1,0 +1,34 @@
+{
+  "voice": "An adult woman in her early twenties, a proud young noblewoman of a pure-blood aristocratic house. Low-to-mid pitched, silky, mature female voice, never childish. Elegant standard Korean, precise diction. Cool, arrogant composure with a hint of playful mockery.",
+  "language": "Korean",
+  "emotions": {
+    "neutral": {
+      "text": "어머, 포터. 오늘은 제법 일찍 왔네? 말포이가의 영애를 기다리게 하지 않은 건 칭찬해 줄게.",
+      "style": ""
+    },
+    "smirk": {
+      "text": "후후, 그 표정은 뭐야? 설마 내가 너를 기다렸다고 생각한 건 아니겠지, 포터?",
+      "style": "Smug and teasing, starting with a light, haughty little laugh, playful superiority."
+    },
+    "annoyed": {
+      "text": "됐어, 그만해. 몇 번을 말해야 알아듣는 거야? 정말 사람 짜증 나게 하는 재주가 있네.",
+      "style": "Cold and irritated, clipped and sharp, exasperated."
+    },
+    "flustered": {
+      "text": "뭐, 뭐라는 거야! 그런 말을 갑자기 하면… 아, 아무튼 착각하지 마!",
+      "style": "Flustered and embarrassed, a little faster, stammering at the start, trying to cover it with pride."
+    },
+    "happy": {
+      "text": "흥, 이번만큼은 인정해 줄게. 네가 준비한 거, 나쁘지 않네. 아니, 꽤 마음에 들어.",
+      "style": "Pleased and warm but still proud, a satisfied smile in her voice."
+    },
+    "sad": {
+      "text": "그때 일은 아직도 가끔 생각나. 다들 나를 그저 말포이라고만 불렀으니까.",
+      "style": "Quiet and wounded, soft, slower and restrained, holding back tears with dignity."
+    },
+    "surprised": {
+      "text": "어머나, 세상에! 지금 이걸 네가 혼자 준비했다고? 정말이야?",
+      "style": "Startled and genuinely surprised, a sharp intake of breath, rising intonation."
+    }
+  }
+}

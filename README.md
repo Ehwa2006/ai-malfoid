@@ -15,7 +15,7 @@
   형식을 지원하지 않는 모델이 `<|EMOTE:smirk|>` 같은 예전 토큰 형식으로 답해도 처리합니다.
 - 💘 **데이팅 시뮬레이션**: 호감도(0~100)에 따라 적대 → 경계 → 호기심 → 호감 → 연인 단계로 바뀌고, 단계마다 말포이의 태도 지시가 시스템 프롬프트에 들어갑니다.
 - 🧍 **3D 아바타 (VRM)**: AIRI와 같은 `@pixiv/three-vrm`으로 Malfoy Draconia VRM 모델을 띄웁니다. 감정 신호에 맞춰 표정·고개 자세·볼 홍조가 바뀌고, 말할 때 립싱크를 하고, 마우스를 따라 보며, 머리카락과 치마가 흔들립니다.
-- 🔊 **목소리 (TTS)**: 카리나의 대사를 한국어 신경망 음성으로 읽습니다. 답변이 흘러나오는 동안 문장이 끝날 때마다 바로 읽고, *행동 묘사*는 읽지 않으며, 아바타 입이 실제 목소리 크기를 따라 움직입니다.
+- 🔊 **목소리 (AI 음성)**: 카리나 전용 AI 목소리(GPT-SoVITS)로 대사를 읽습니다. 비웃을 때·당황할 때·짜증 날 때마다 감정별 참고 음성으로 말투가 바뀝니다. 답변이 흘러나오는 동안 문장이 끝날 때마다 바로 읽고, *행동 묘사*는 읽지 않으며, 아바타 입이 실제 목소리 크기를 따라 움직입니다.
 - 💾 대화, 호감도, 설정은 브라우저 localStorage에 저장됩니다.
 
 ## 실행
@@ -64,12 +64,41 @@ EXAONE 3.5는 LG AI연구원의 비상업 라이선스 모델이라 개인·비�
 
 | 음성 엔진 | 특징 |
 |---|---|
-| **Edge 신경망 음성** (기본) | `npm start`/`npm run dev` 서버에 내장되어 설치할 게 없습니다. 한국어 여성 "선희", 남성 "인준"·"현수"를 쓸 수 있습니다. 인터넷이 필요합니다. Microsoft Edge의 "소리 내어 읽기" 서비스를 비공식적으로 쓰는 것이라 개인 용도로만 쓰세요. |
-| 브라우저 내장 음성 | 인터넷 없이 됩니다. 윈도우·맥에 깔린 한국어 음성을 쓰며, 음질은 컴퓨터마다 다릅니다. Edge 음성이 실패하면 자동으로 이쪽으로 바뀝니다. |
+| **AI 음성 (GPT-SoVITS)** (기본) | 카리나 전용 목소리. 내 컴퓨터에서 도는 음성 복제 모델이 감정별 참고 음성을 듣고 같은 목소리·말투로 읽습니다. 아래 [AI 음성](#ai-음성-gpt-sovits) 설치가 필요하고, 없거나 꺼져 있으면 Edge 음성으로 대신 읽습니다. |
+| Edge 신경망 음성 | `npm start`/`npm run dev` 서버에 내장되어 설치할 게 없습니다. 한국어 여성 "선희", 남성 "인준"·"현수"를 쓸 수 있습니다. 인터넷이 필요합니다. Microsoft Edge의 "소리 내어 읽기" 서비스를 비공식적으로 쓰는 것이라 개인 용도로만 쓰세요. |
+| 브라우저 내장 음성 | 인터넷 없이 됩니다. 윈도우·맥에 깔린 한국어 음성을 쓰며, 음질은 컴퓨터마다 다릅니다. Edge 음성도 실패하면 자동으로 이쪽으로 바뀝니다. |
 | OpenAI 호환 서버 | `…/v1/audio/speech`를 지원하는 서버(OpenAI API, 로컬 TTS 서버 등)의 주소·모델·목소리·API 키를 넣어 씁니다. |
 
-빠르기와 음 높이를 조절하고 **미리 듣기**로 확인할 수 있습니다. 메시지 옆 🔊 버튼으로 다시 듣고, **중지** 버튼으로 멈춥니다.
-`vite build`로 만든 정적 파일만 올려서 쓰면 내장 Edge 음성 서버가 없으므로 브라우저 음성이나 OpenAI 호환 서버를 쓰세요.
+빠르기와 음 높이를 조절하고 **미리 듣기**로 확인할 수 있습니다. 메시지 옆 🔊 버튼으로 다시 듣고(그 메시지의 감정 목소리로), **중지** 버튼으로 멈춥니다.
+`vite build`로 만든 정적 파일만 올려서 쓰면 내장 음성 서버(AI 음성 연결, Edge 음성)가 없으므로 브라우저 음성이나 OpenAI 호환 서버를 쓰세요.
+
+### AI 음성 (GPT-SoVITS)
+
+카리나 목소리는 실존 인물이나 성우, 기존 캐릭터의 목소리를 따라 한 것이 아닙니다.
+음성 디자인 모델 [Qwen3-TTS VoiceDesign](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign)(Apache-2.0)에
+"23세 성인 여성, 오랜 귀족 가문의 영애, 우아한 메조소프라노, 도도하고 자신만만하며 은근히 놀리는 말투"라는 설명만 주어 새로 만든 **AI 생성 음성**입니다.
+같은 목소리로 감정 7가지(평소·비웃음·짜증·당황·기쁨·슬픔·놀람)를 연기한 짧은 참고 음성이 `voices/karina/`에 들어 있고,
+[GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS)(MIT)가 답변의 감정에 맞는 참고 음성을 골라 그 목소리·말투로 새 문장을 읽습니다.
+
+**설치 (Windows, 한 번만)**
+
+1. [GPT-SoVITS 윈도우 통합 패키지](https://huggingface.co/lj1995/GPT-SoVITS-windows-package/tree/main)에서 `GPT-SoVITS-v2pro-20250604.7z`(약 8.2GB)를 받습니다.
+   RTX 50 시리즈 그래픽카드라면 `GPT-SoVITS-v2pro-20250604-nvidia50.7z`를 받으세요. Python과 모델이 모두 들어 있어 따로 설치할 것이 없습니다.
+2. [7-Zip](https://www.7-zip.org)으로 **홈 폴더**(`C:\Users\<이름>`), **다운로드**, **바탕화면**, `C:\` 중 한 곳에 풉니다.
+   폴더 경로에 한글이 있으면 GPT-SoVITS가 한국어 발음을 분석하지 못하니 영문 경로에 두세요.
+3. 평소처럼 `npm.cmd start`. GPT-SoVITS 폴더를 찾아 AI 음성 서버를 자동으로 켭니다(NVIDIA GPU가 있으면 GPU, 없으면 CPU).
+   서버가 모델을 올리는 처음 30초쯤은 Edge 음성으로 읽고, 준비되면 다음 답변부터 AI 음성으로 읽습니다.
+
+다른 곳에 풀었다면 폴더를 알려 주세요: PowerShell에서 `$env:GPT_SOVITS_DIR="D:\GPT-SoVITS-v2pro-20250604"; npm.cmd start`.
+직접 켜려면 GPT-SoVITS 폴더에서 `runtime\python.exe api_v2.py -a 127.0.0.1 -p 9880 -c GPT_SoVITS/configs/tts_infer_karina.yaml`
+(`tts_infer_karina.yaml`은 `npm start`가 [scripts/gpt-sovits/karina.yaml](scripts/gpt-sovits/karina.yaml)을 복사해 둔 것입니다).
+다른 컴퓨터에서 돌린다면 `GPT_SOVITS_URL=http://192.168.0.10:9880`으로 주소를 바꿉니다.
+⚙️ 설정의 목소리 칸에서 서버와 보이스 팩 상태를 확인할 수 있습니다.
+
+속도는 NVIDIA GPU에서 문장당 1초 안팎, CPU만으로는 문장당 10초쯤 걸립니다. 앞 문장을 읽는 동안 다음 문장을 미리 만들어 둡니다.
+
+**보이스 팩 바꾸기**: `voices/<이름>/voice.json`에 감정별 참고 음성(3~10초 wav)과 그 대사를 적고 `MALFOID_VOICE_PACK=voices/<이름>/voice.json`으로 실행합니다.
+없는 감정은 `neutral`을 씁니다. 직접 녹음했거나 쓸 권리가 있는 **성인** 목소리만 쓰고, 실존 인물의 목소리를 허락 없이 복제하지 마세요.
 
 ## 3D 모델
 
@@ -124,10 +153,10 @@ src/
 │  └─ persona.ts       # 말포이 시스템 프롬프트 (호감도 단계 반영)
 ├─ composables/
 │  ├─ useChat.ts       # 대화 상태, 스트리밍, 표정/호감도 반영, 저장
-│  └─ useTts.ts        # 목소리: 문장 단위로 바로 읽기, 실패 시 브라우저 음성으로 전환
+│  └─ useTts.ts        # 목소리: 문장 단위로 바로 읽기, 감정별 AI 음성, 실패 시 Edge → 브라우저 음성으로 전환
 ├─ tts/
 │  ├─ chunker.ts       # 흘러나오는 대사를 문장으로 자르기 (행동 묘사 제외)
-│  └─ engines.ts       # HTTP(Edge·OpenAI 호환) / 브라우저 음성 재생, 음량으로 립싱크
+│  └─ engines.ts       # HTTP(AI 음성·Edge·OpenAI 호환) / 브라우저 음성 재생, 음량으로 립싱크
 ├─ three/
 │  ├─ vrm.ts           # VRM 로더: 감정 → VRM 표정, 고개 자세, 시선, 립싱크, 볼 홍조
 │  ├─ pose.ts          # 감정별 고개 자세 (VRM·간이 모델 공용)
@@ -145,7 +174,10 @@ public/models/
 ├─ malfoy-draconia.vrm # 기본 3D 모델 (HiGuys920, CC BY 4.0 → VRM 1.0 변환)
 └─ CREDITS.md
 scripts/convert-draconia/  # FBX → VRM 변환 (Blender + VRM Add-on, 화면 없이 실행)
-scripts/start.mjs          # npm start: Ollama 확인·모델 받기·앱 실행
+voices/karina/             # 카리나 보이스 팩: 감정별 참고 음성 7개 + voice.json (AI 생성 음성, CREDITS.md)
+scripts/start.mjs          # npm start: Ollama 확인·모델 받기·AI 음성 서버 켜기·앱 실행
+scripts/gpt-sovits/        # GPT-SoVITS 서버 설정
+server/gptSovits.ts        # 개발 서버에 붙는 AI 음성 연결 (/tts/gsv → GPT-SoVITS api_v2, 감정별 참고 음성 선택)
 server/edgeTts.ts          # 개발 서버에 붙는 Edge 신경망 음성 엔드포인트 (/tts/v1/audio/speech)
 ```
 

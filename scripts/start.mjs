@@ -2,8 +2,10 @@
 // 노트북에서 한 번에 실행하기: npm start
 //   1. Ollama가 꺼져 있으면 켠다 (설치돼 있지 않으면 설치 방법을 알려 준다)
 //   2. 모델이 하나도 없으면 기본 모델을 받는다
-//   3. 의존성을 설치하고 개발 서버를 띄운 뒤 브라우저를 연다
-// 환경 변수: OLLAMA_HOST (기본 127.0.0.1:11434), MALFOID_MODEL (기본 exaone3.5:7.8b)
+//   3. AI 음성(GPT-SoVITS)이 설치돼 있으면 켠다 (없으면 Edge 음성으로 읽는다)
+//   4. 의존성을 설치하고 개발 서버를 띄운 뒤 브라우저를 연다
+// 환경 변수: OLLAMA_HOST (기본 127.0.0.1:11434), MALFOID_MODEL (기본 exaone3.5:7.8b),
+//           GPT_SOVITS_DIR (GPT-SoVITS 폴더), GPT_SOVITS_URL (기본 http://127.0.0.1:9880)
 import { copyFileSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { spawn, spawnSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
@@ -150,6 +152,10 @@ async function startGptSovits() {
   const dir = findGptSovits()
   if (!dir) {
     say('AI 음성(GPT-SoVITS)이 없어서 Edge 음성으로 읽어요. 설치 방법은 README의 "AI 음성" 참고')
+    return
+  }
+  if (!existsSync(join(dir, 'GPT_SoVITS', 'pretrained_models', 'v2Pro', 's2Gv2Pro.pth'))) {
+    say(`${dir}에 v2Pro 모델이 없어서 Edge 음성으로 읽어요. README의 "AI 음성"에 있는 v2pro 패키지를 받아 주세요`)
     return
   }
   // 우리 설정 파일을 GPT-SoVITS 폴더에 복사하고, NVIDIA GPU가 없으면 CPU 설정으로 바꾼다

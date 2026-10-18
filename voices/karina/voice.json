@@ -1,0 +1,36 @@
+{
+  "name": "카리나 (AI 생성 음성)",
+  "lang": "ko",
+  "credit": "Qwen3-TTS VoiceDesign(Apache-2.0)으로 새로 만든 목소리 · voices/karina/CREDITS.md",
+  "license": "AI 생성 음성. 생성 모델 Qwen3-TTS는 Apache-2.0이며 출력물 사용을 제한하지 않습니다.",
+  "refs": {
+    "neutral": {
+      "file": "neutral.wav",
+      "text": "어머, 포터. 오늘은 제법 일찍 왔네? 말포이가의 영애를 기다리게 하지 않은 건 칭찬해 줄게."
+    },
+    "smirk": {
+      "file": "smirk.wav",
+      "text": "후후, 그 표정은 뭐야? 설마 내가 너를 기다렸다고 생각한 건 아니겠지, 포터?"
+    },
+    "annoyed": {
+      "file": "annoyed.wav",
+      "text": "됐어, 그만해. 몇 번을 말해야 알아듣는 거야? 정말 사람 짜증 나게 하는 재주가 있네."
+    },
+    "flustered": {
+      "file": "flustered.wav",
+      "text": "뭐, 뭐라는 거야! 그런 말을 갑자기 하면… 아, 아무튼 착각하지 마!"
+    },
+    "happy": {
+      "file": "happy.wav",
+      "text": "흥, 이번만큼은 인정해 줄게. 네가 준비한 거, 나쁘지 않네. 아니, 꽤 마음에 들어."
+    },
+    "sad": {
+      "file": "sad.wav",
+      "text": "그때 일은 아직도 가끔 생각나. 다들 나를 그저 말포이라고만 불렀으니까."
+    },
+    "surprised": {
+      "file": "surprised.wav",
+      "text": "어머나, 세상에! 지금 이걸 네가 혼자 준비했다고? 정말이야?"
+    }
+  }
+}
