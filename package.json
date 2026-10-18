@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Ollama + AIRI 스타일로 만든 드레이코 말포이 데이팅 채팅",
   "scripts": {
+    "start": "node scripts/start.mjs",
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",

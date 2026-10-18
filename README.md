@@ -19,11 +19,24 @@
 
 ## 실행
 
-```bash
-# 1. Ollama 설치 후 모델 받기 (앱 기본값, 한국어 캐릭터 대화가 가장 자연스러웠던 모델)
-ollama pull exaone3.5:7.8b      # 또는 qwen2.5:7b 등. 설정한 모델이 없으면 설치된 모델로 자동 전환
+준비물: [Node.js](https://nodejs.org) 20.19 이상, [Ollama](https://ollama.com/download)
 
-# 2. 앱 실행
+```bash
+git clone https://github.com/Ehwa2006/ai-malfoid.git
+cd ai-malfoid
+npm start
+```
+
+`npm start`가 알아서 하는 일:
+
+1. Ollama가 꺼져 있으면 켭니다. 설치돼 있지 않으면 설치 방법을 알려 줍니다.
+2. 모델이 하나도 없으면 기본 모델 `exaone3.5:7.8b`(약 4.8GB)를 받습니다. 처음 한 번만 받습니다.
+3. 패키지를 설치하고 앱을 띄운 뒤 브라우저를 엽니다.
+
+직접 하고 싶다면:
+
+```bash
+ollama pull exaone3.5:7.8b      # 또는 qwen2.5:7b 등. 설정한 모델이 없으면 설치된 모델로 자동 전환
 npm install
 npm run dev                     # http://localhost:5173
 ```
