@@ -8,9 +8,9 @@
 //           GPT_SOVITS_DIR (GPT-SoVITS 폴더), GPT_SOVITS_URL (기본 http://127.0.0.1:9880)
 import { copyFileSync, existsSync, openSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { spawn, spawnSync } from 'node:child_process'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { findGptSovits, hasV2Pro, pythonOf } from './gpt-sovits/find.mjs'
+import { EXTRACTING_MARK, findGptSovits, hasV2Pro, pythonOf } from './gpt-sovits/find.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const IS_WINDOWS = process.platform === 'win32'
@@ -126,6 +126,9 @@ async function startGptSovits() {
     return
   }
   const dir = findGptSovits()
+  const envDir = process.env.GPT_SOVITS_DIR
+  if (envDir && dir !== envDir && dir !== join(envDir, basename(envDir)))
+    say(`GPT_SOVITS_DIR(${envDir})에서 GPT-SoVITS를 찾지 못했어요.${dir ? ` 대신 ${dir}를 써요.` : ''} 이 설정을 지우려면 PowerShell에서 [Environment]::SetEnvironmentVariable('GPT_SOVITS_DIR', $null, 'User') 후 새 창을 여세요`)
   if (!dir) {
     say(`AI 음성(GPT-SoVITS)이 없어서 Edge 음성으로 읽어요. 설치하려면: ${IS_WINDOWS ? 'npm.cmd' : 'npm'} run voice:install`)
     return
@@ -135,22 +138,28 @@ async function startGptSovits() {
     return
   }
   const python = pythonOf(dir)
-  if (!python) {
-    say(`${dir}에 Python(runtime\\python.exe)이 없어요. 설치가 덜 끝났으면 다시 실행해 주세요: ${IS_WINDOWS ? 'npm.cmd' : 'npm'} run voice:install`)
+  if (!python || existsSync(join(dir, EXTRACTING_MARK))) {
+    say(`${dir}는 압축을 다 풀지 못한 설치라 Edge 음성으로 읽어요. 다시 실행하면 이어서 끝내요: ${IS_WINDOWS ? 'npm.cmd' : 'npm'} run voice:install`)
     return
   }
   // 우리 설정 파일을 GPT-SoVITS 폴더에 복사하고, NVIDIA GPU가 없으면 CPU 설정으로 바꾼다
-  const config = join(dir, 'GPT_SoVITS', 'configs', 'tts_infer_karina.yaml')
-  copyFileSync(join(ROOT, 'scripts', 'gpt-sovits', 'karina.yaml'), config)
   const hasNvidia = spawnSync('nvidia-smi', ['-L'], { stdio: 'ignore', shell: IS_WINDOWS }).status === 0
-  if (!hasNvidia)
-    writeFileSync(config, readFileSync(config, 'utf8').replace('device: cuda', 'device: cpu').replace('is_half: true', 'is_half: false'))
-  const log = join(dir, 'karina-api.log')
+  let out
+  try {
+    const config = join(dir, 'GPT_SoVITS', 'configs', 'tts_infer_karina.yaml')
+    copyFileSync(join(ROOT, 'scripts', 'gpt-sovits', 'karina.yaml'), config)
+    if (!hasNvidia)
+      writeFileSync(config, readFileSync(config, 'utf8').replace('device: cuda', 'device: cpu').replace('is_half: true', 'is_half: false'))
+    // 서버 출력은 karina-api.log에 남긴다 (켜지지 않을 때 원인 확인용)
+    out = openSync(join(dir, 'karina-api.log'), 'w')
+  }
+  catch (e) {
+    say(`AI 음성 서버를 준비하지 못해 Edge 음성으로 읽어요: ${e.message}`)
+    return
+  }
   say(`AI 음성(GPT-SoVITS)을 켜는 중… (${dir}, ${hasNvidia ? 'NVIDIA GPU' : 'CPU'}) 모델을 올리는 30초쯤은 Edge 음성으로 읽어요`)
   const port = new URL(url).port || '9880'
   // -X utf8: 콘솔 없이 켜면 Python 출력이 cp949가 되어, 대사에 "—" 같은 글자가 있으면 합성이 실패한다
-  // 서버 출력은 karina-api.log에 남긴다 (켜지지 않을 때 원인 확인용)
-  const out = openSync(log, 'w')
   const server = spawn(python, ['-X', 'utf8', 'api_v2.py', '-a', '127.0.0.1', '-p', port, '-c', 'GPT_SoVITS/configs/tts_infer_karina.yaml'], {
     cwd: dir,
     detached: true,

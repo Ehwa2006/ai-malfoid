@@ -11,13 +11,13 @@
 //   --keep                       다 푼 뒤에도 압축 파일을 남긴다
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { createReadStream, createWriteStream, existsSync, mkdirSync, renameSync, rmSync, statfsSync, statSync, writeFileSync } from 'node:fs'
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statfsSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, parse, resolve } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
-import { findGptSovits, INSTALL_DIR_FILE, INSTALLED_MARK, installedAt, searchRoots } from './find.mjs'
+import { EXTRACTING_MARK, filesPresent, findGptSovits, INSTALL_DIR_FILE, INSTALLED_MARK, installedAt, searchRoots } from './find.mjs'
 
 const IS_WINDOWS = process.platform === 'win32'
 /**
@@ -69,6 +69,10 @@ export function parseArgs(argv, env = process.env) {
   const args = { dir: null, package: null, keep: env.npm_config_keep === 'true' }
   if (Object.hasOwn(PACKAGES, env.npm_config_package ?? ''))
     args.package = env.npm_config_package
+  if (env.npm_config_dir && env.npm_config_dir !== 'true') // --dir=D:\AI 꼴
+    args.dir = env.npm_config_dir
+  // --dir=D:\AI 꼴도 받는다
+  argv = argv.flatMap(a => /^--(dir|package)=/.test(a) ? [a.slice(0, a.indexOf('=')), a.slice(a.indexOf('=') + 1)] : [a])
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--dir')
       args.dir = argv[++i]
@@ -109,6 +113,25 @@ function freeBytes(dir) {
   catch {
     return Infinity // 알 수 없으면 막지 않는다
   }
+}
+
+/** 폴더 안 파일 크기의 합 (압축을 풀다 멈춘 폴더가 이미 차지한 공간) */
+function dirSize(dir) {
+  let total = 0
+  const stack = [dir]
+  try {
+    while (stack.length) {
+      const d = stack.pop()
+      for (const e of readdirSync(d, { withFileTypes: true })) {
+        if (e.isDirectory())
+          stack.push(join(d, e.name))
+        else if (e.isFile())
+          total += statSync(join(d, e.name)).size
+      }
+    }
+  }
+  catch {}
+  return total
 }
 
 function fmtTime(sec) {
@@ -311,15 +334,17 @@ export async function main() {
   const archive = join(archiveDir, pkg.file)
   const part = `${archive}.part`
 
-  // 압축을 풀다 멈췄으면(완료 표시가 없고 압축 파일이 남아 있으면) 설치된 것으로 보지 않는다
-  const interrupted = dir => !existsSync(join(dir, INSTALLED_MARK)) && (existsSync(archive) || existsSync(part))
-  const existing = findGptSovits()
-  if (existing && installedAt(existing) && !interrupted(existing)) {
+  // 압축을 풀다 멈춘 폴더(EXTRACTING_MARK가 남아 있음)는 설치된 것으로 보지 않는다 (installedAt)
+  const existing = installedAt(target) ? target : findGptSovits()
+  if (existing && installedAt(existing)) {
     say(`이미 설치돼 있어요: ${existing}`)
     say(`${IS_WINDOWS ? 'npm.cmd' : 'npm'} start로 실행하면 AI 음성 서버도 같이 켜져요`)
     return
   }
-  if (existing && existing !== target && !installedAt(existing))
+  const resuming = existsSync(join(target, EXTRACTING_MARK))
+  if (resuming)
+    say(`${target}의 압축을 풀다 멈췄었어요. 다시 풀어요.`)
+  else if (existing && existing !== target)
     say(`${existing}에는 카리나 목소리에 필요한 파일(v2Pro 모델 등)이 없어서 v2pro 패키지를 새로 받아요`)
   say(`그래픽카드: ${gpus.length ? gpus.join(', ') : 'NVIDIA 없음 (CPU로 읽어요, 문장당 10초쯤)'} → ${pkg.file}`)
 
@@ -333,10 +358,11 @@ export async function main() {
   const haveArchive = existsSync(archive) && statSync(archive).size === pkg.size
   const have = haveArchive ? pkg.size : existsSync(part) ? Math.min(statSync(part).size, pkg.size) : 0
 
-  // 공간: 남은 다운로드 + 압축을 푼 크기 (+ 여유 1GB). 압축 파일은 다 푼 뒤 지운다
+  // 공간: 남은 다운로드 + 압축을 푼 크기 (+ 여유 1GB). 압축 파일은 다 푼 뒤 지운다.
+  // 풀다 멈춘 폴더가 있으면 그 파일들은 덮어쓰므로 이미 차지한 만큼은 빼고 센다
   const sameDrive = parse(archiveDir).root.toLowerCase() === parse(root).root.toLowerCase()
   const needArchive = pkg.size - have
-  const needUnpack = pkg.unpacked + 1e9
+  const needUnpack = Math.max(0, pkg.unpacked - (resuming ? dirSize(target) : 0)) + 1e9
   const checks = sameDrive ? [[root, needArchive + needUnpack]] : [[archiveDir, needArchive], [root, needUnpack]]
   for (const [dir, need] of checks) {
     const free = freeBytes(dir)
@@ -367,14 +393,18 @@ export async function main() {
   const extractor = findExtractor() ?? installSevenZip()
   if (!extractor)
     fail(`압축을 풀 도구가 없어요. 7-Zip(https://www.7-zip.org)을 설치하고 다시 실행해 주세요.`)
+  // 다 풀 때까지 "푸는 중" 표시를 남겨 둔다 (창을 닫거나 전원이 꺼지면 다음 실행에서 다시 푼다)
+  mkdirSync(target, { recursive: true })
   rmSync(join(target, INSTALLED_MARK), { force: true })
+  writeFileSync(join(target, EXTRACTING_MARK), '')
   say(`${root}에 압축을 풀어요 (약 ${gb(pkg.unpacked)}, 파일 5만여 개).`)
   say(extractor.kind === 'tar'
     ? '진행 표시 없이 10분 넘게 걸릴 수 있어요. 끝날 때까지 창을 닫지 마세요.'
     : '몇 분 걸려요. 끝날 때까지 창을 닫지 마세요.')
-  if (!extract(extractor, archive, root) || !installedAt(target))
+  if (!extract(extractor, archive, root) || !filesPresent(target))
     fail(`압축을 다 풀지 못했어요. 다시 실행하면 처음부터 다시 풀어요 (그래도 안 되면 7-Zip을 설치하고 다시 실행해 주세요).`)
   writeFileSync(join(target, INSTALLED_MARK), `${pkg.file} ${pkg.sha256}\n`)
+  rmSync(join(target, EXTRACTING_MARK), { force: true })
 
   // 기본으로 찾아보는 곳이 아니면 설치 위치를 적어 두어 npm start가 찾게 한다
   if (!searchRoots().some(r => resolve(r).toLowerCase() === root.toLowerCase()))
