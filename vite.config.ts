@@ -7,6 +7,8 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [vue()],
+    // three.js 청크(약 670kB)는 아바타 컴포넌트와 함께 지연 로딩된다
+    build: { chunkSizeWarningLimit: 800 },
     server: {
       // 브라우저 → Ollama 직접 호출 시 CORS 문제가 생기므로 dev 서버에서 프록시한다.
       proxy: {

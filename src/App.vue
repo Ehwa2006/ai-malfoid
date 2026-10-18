@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue'
 import { useChat } from './composables/useChat'
 import { CHARACTER_NAME, CHARACTER_TAGLINE } from './lib/persona'
 import MalfoyAvatar from './components/MalfoyAvatar.vue'
@@ -7,11 +7,23 @@ import AffectionMeter from './components/AffectionMeter.vue'
 import MessageBubble from './components/MessageBubble.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 
+// three.js는 용량이 커서 채팅 화면이 먼저 뜨도록 나중에 불러온다
+const Avatar3D = defineAsyncComponent(() => import('./components/Avatar3D.vue'))
+
 const { settings, messages, affection, stage, emotion, isStreaming, error, lastDelta, send, stop, reset } = useChat()
 
 const input = ref('')
 const showSettings = ref(false)
 const scroller = ref<HTMLElement>()
+const avatar3d = ref<{ exportGlb: () => Promise<void> }>()
+const localModelUrl = ref<string | null>(null)
+const modelUrl = computed(() => localModelUrl.value ?? (settings.value.modelUrl || null))
+
+function onModelFile(file: File) {
+  if (localModelUrl.value)
+    URL.revokeObjectURL(localModelUrl.value)
+  localModelUrl.value = URL.createObjectURL(file)
+}
 
 async function submit() {
   const text = input.value
@@ -35,7 +47,15 @@ watch(() => messages.value.map(m => m.text.length).join(), async () => {
 <template>
   <div class="layout">
     <aside class="stage">
-      <MalfoyAvatar :emotion="emotion" :speaking="isStreaming" />
+      <Avatar3D
+        v-if="settings.avatarMode === '3d'"
+        ref="avatar3d"
+        :emotion="emotion"
+        :speaking="isStreaming"
+        :model-url="modelUrl"
+        @error="error = $event"
+      />
+      <MalfoyAvatar v-else :emotion="emotion" :speaking="isStreaming" />
       <h1>{{ CHARACTER_NAME }}</h1>
       <p class="sub">{{ CHARACTER_TAGLINE }}</p>
       <AffectionMeter :value="affection" :stage="stage" :last-delta="lastDelta" />
@@ -43,9 +63,12 @@ watch(() => messages.value.map(m => m.text.length).join(), async () => {
       <SettingsPanel
         v-if="showSettings"
         v-model="settings"
+        :custom-model="!!modelUrl"
         class="settings"
         @reset="reset(); showSettings = false"
         @close="showSettings = false"
+        @model-file="onModelFile"
+        @export-glb="avatar3d?.exportGlb()"
       />
     </aside>
 
@@ -146,6 +169,7 @@ h1 { margin: 8px 0 0; font-size: 1.3rem; letter-spacing: 0.04em; }
     max-height: 45vh;
   }
   .stage :deep(.avatar) { max-width: 90px; }
+  .stage :deep(.avatar3d) { max-width: 120px; }
   h1, .sub { display: none; }
   .messages, .composer { padding-left: 16px; padding-right: 16px; }
 }

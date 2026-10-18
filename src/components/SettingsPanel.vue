@@ -4,7 +4,8 @@ import { listModels } from '../lib/ollama'
 import type { Settings } from '../composables/useChat'
 
 const settings = defineModel<Settings>({ required: true })
-const emit = defineEmits<{ reset: [], close: [] }>()
+defineProps<{ customModel?: boolean }>()
+const emit = defineEmits<{ 'reset': [], 'close': [], 'model-file': [file: File], 'export-glb': [] }>()
 
 const models = ref<string[]>([])
 const status = ref('')
@@ -22,6 +23,12 @@ async function refresh() {
   catch (e) {
     status.value = `❌ ${(e as Error).message}`
   }
+}
+
+function onModelFile(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (file)
+    emit('model-file', file)
 }
 
 function confirmReset() {
@@ -70,6 +77,26 @@ onMounted(refresh)
       기억할 최근 대화 수: {{ settings.historyLimit }}
       <input v-model.number="settings.historyLimit" type="range" min="4" max="60" step="2">
     </label>
+
+    <label>
+      아바타
+      <select v-model="settings.avatarMode">
+        <option value="3d">3D (카리나 말포이 모델)</option>
+        <option value="2d">2D (가벼운 SVG)</option>
+      </select>
+    </label>
+
+    <template v-if="settings.avatarMode === '3d'">
+      <label>
+        외부 3D 모델 주소 (.vrm / .glb, 비우면 기본 모델)
+        <input v-model.trim="settings.modelUrl" placeholder="/models/karina.vrm">
+      </label>
+      <label>
+        또는 내 컴퓨터의 모델 파일 열기 (이번 접속에서만 유지)
+        <input type="file" accept=".vrm,.glb,.gltf" @change="onModelFile">
+      </label>
+      <button v-if="!customModel" class="ghost" @click="emit('export-glb')">카리나 3D 모델을 .glb로 내보내기</button>
+    </template>
 
     <button class="danger" @click="confirmReset">대화 & 호감도 초기화</button>
   </div>

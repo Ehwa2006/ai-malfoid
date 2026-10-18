@@ -21,6 +21,10 @@ export interface Settings {
   temperature: number
   /** LLM에 보낼 최근 메시지 수 (컨텍스트 절약) */
   historyLimit: number
+  /** 아바타 표시 방식 */
+  avatarMode: '3d' | '2d'
+  /** 외부 3D 모델(.vrm/.glb) 주소. 비우면 직접 만든 3D 모델을 쓴다. */
+  modelUrl: string
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -29,6 +33,8 @@ const DEFAULT_SETTINGS: Settings = {
   userName: '포터',
   temperature: 0.8,
   historyLimit: 20,
+  avatarMode: '3d',
+  modelUrl: '',
 }
 
 const INITIAL_AFFECTION = 20
@@ -52,6 +58,8 @@ function greetingMessage(userName: string): DisplayMessage {
 
 export function useChat() {
   const settings = useStoredRef<Settings>('malfoid:settings', { ...DEFAULT_SETTINGS })
+  // 이전 버전에서 저장된 설정에 새 항목의 기본값을 채운다
+  settings.value = { ...DEFAULT_SETTINGS, ...settings.value }
   const messages = useStoredRef<DisplayMessage[]>('malfoid:karina:messages', [greetingMessage(settings.value.userName)])
   const affection = useStoredRef<number>('malfoid:karina:affection', INITIAL_AFFECTION)
   const emotion = ref<Emotion>(messages.value.at(-1)?.emotion ?? 'neutral')
