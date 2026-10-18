@@ -1,8 +1,8 @@
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { streamChat, type ChatMessage } from '../lib/ollama'
 import { MarkerParser, type Emotion } from '../lib/markers'
 import { clampAffection, clampDelta, stageOf } from '../lib/affection'
-import { buildSystemPrompt, GREETING } from '../lib/persona'
+import { buildGreeting, buildSystemPrompt } from '../lib/persona'
 import { useStoredRef } from './useStoredRef'
 
 export interface DisplayMessage {
@@ -26,7 +26,7 @@ export interface Settings {
 const DEFAULT_SETTINGS: Settings = {
   baseUrl: '/ollama',
   model: 'llama3.1:8b',
-  userName: '그레인저',
+  userName: '포터',
   temperature: 0.8,
   historyLimit: 20,
 }
@@ -37,7 +37,7 @@ function uid() {
   return Math.random().toString(36).slice(2, 10)
 }
 
-function greetingMessage(): DisplayMessage {
+function greetingMessage(userName: string): DisplayMessage {
   const msg: DisplayMessage = { id: uid(), role: 'assistant', text: '' }
   const parser = new MarkerParser((e) => {
     if (e.type === 'text')
@@ -45,21 +45,27 @@ function greetingMessage(): DisplayMessage {
     else if (e.type === 'emote')
       msg.emotion = e.emotion
   })
-  parser.push(GREETING)
+  parser.push(buildGreeting(userName))
   parser.flush()
   return msg
 }
 
 export function useChat() {
   const settings = useStoredRef<Settings>('malfoid:settings', { ...DEFAULT_SETTINGS })
-  const messages = useStoredRef<DisplayMessage[]>('malfoid:ts:messages', [greetingMessage()])
-  const affection = useStoredRef<number>('malfoid:ts:affection', INITIAL_AFFECTION)
+  const messages = useStoredRef<DisplayMessage[]>('malfoid:karina:messages', [greetingMessage(settings.value.userName)])
+  const affection = useStoredRef<number>('malfoid:karina:affection', INITIAL_AFFECTION)
   const emotion = ref<Emotion>(messages.value.at(-1)?.emotion ?? 'neutral')
   const isStreaming = ref(false)
   const error = ref<string | null>(null)
   const lastDelta = ref<number | null>(null)
 
   const stage = computed(() => stageOf(affection.value))
+
+  // 아직 대화를 시작하기 전이라면, 이름을 바꿨을 때 첫 인사도 새 이름에 맞춘다.
+  watch(() => settings.value.userName, (name) => {
+    if (messages.value.length === 1 && messages.value[0].role === 'assistant')
+      messages.value = [greetingMessage(name)]
+  })
 
   let controller: AbortController | null = null
 
@@ -142,7 +148,7 @@ export function useChat() {
 
   function reset() {
     stop()
-    messages.value = [greetingMessage()]
+    messages.value = [greetingMessage(settings.value.userName)]
     affection.value = INITIAL_AFFECTION
     emotion.value = messages.value[0].emotion ?? 'neutral'
     lastDelta.value = null

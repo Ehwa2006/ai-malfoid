@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// AIRI의 Live2D/VRM 아바타 자리를 대신하는 가벼운 SVG 아바타 (TS 말포이).
+// AIRI의 Live2D/VRM 아바타 자리를 대신하는 가벼운 SVG 아바타 (카리나 말포이).
 // emotion prop만 맞춰주면 나중에 Live2D 모델로 교체할 수 있다.
 import { computed } from 'vue'
 import type { Emotion } from '../lib/markers'
@@ -28,7 +28,7 @@ const face = computed(() => FACES[props.emotion] ?? FACES.neutral)
 </script>
 
 <template>
-  <svg class="avatar" :class="{ speaking }" viewBox="0 0 220 260" role="img" :aria-label="`TS 말포이 (${emotion})`">
+  <svg class="avatar" :class="{ speaking }" viewBox="0 0 220 260" role="img" :aria-label="`카리나 말포이 (${emotion})`">
     <!-- 뒷머리 (긴 플래티넘 블론드) -->
     <path
       d="M52 110 Q44 40 110 36 Q176 40 168 110 L176 210 Q150 226 140 200 L80 200 Q70 226 44 210 Z"
