@@ -14,7 +14,13 @@ import type { Emotion } from '../lib/markers'
 import { createKarina } from '../three/karina'
 import type { AvatarController } from '../three/types'
 
-const props = defineProps<{ emotion: Emotion, speaking?: boolean, modelUrl?: string | null }>()
+const props = defineProps<{
+  emotion: Emotion
+  speaking?: boolean
+  /** 목소리 크기로 정한 입 벌림 0~1 (TTS). 없거나 null이면 speaking 동안 적당히 여닫는다 */
+  mouthLevel?: () => number | null
+  modelUrl?: string | null
+}>()
 const emit = defineEmits<{ error: [message: string] }>()
 
 const container = ref<HTMLDivElement>()
@@ -103,7 +109,7 @@ function loop(now: number) {
   frameId = requestAnimationFrame(loop)
   const dt = Math.min(0.1, (now - last) / 1000)
   last = now
-  avatar?.update(dt, { speaking: !!props.speaking, lookX: pointer.x, lookY: pointer.y })
+  avatar?.update(dt, { speaking: !!props.speaking, mouth: props.mouthLevel?.() ?? null, lookX: pointer.x, lookY: pointer.y })
   if (renderer && effect) {
     // OutlineEffect는 autoClear 기본값이 없어 직접 지워야 이전 프레임이 남지 않는다
     renderer.clear()

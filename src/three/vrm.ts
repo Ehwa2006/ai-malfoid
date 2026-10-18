@@ -6,7 +6,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { VRMLoaderPlugin, VRMUtils, type VRM, type VRMHumanBoneName } from '@pixiv/three-vrm'
 import type { Emotion } from '../lib/markers'
 import { HEAD_POSE } from './pose'
-import type { AvatarController } from './types'
+import { mouthOpen, type AvatarController } from './types'
 
 /** 감정 → VRM 표준 표정 가중치 */
 const EXPRESSIONS: Record<Emotion, Partial<Record<string, number>>> = {
@@ -117,7 +117,7 @@ function vrmController(vrm: VRM): AvatarController {
         }
         // 눈을 감는 표정(웃음 등)과 겹치면 표정의 overrideBlink가 깜빡임을 줄인다
         em.setValue('blink', blink)
-        em.setValue('aa', state.speaking ? MathUtils.clamp(0.55 + 0.4 * Math.sin(time * 17) + 0.2 * Math.sin(time * 29), 0, 1) : 0)
+        em.setValue('aa', mouthOpen(state, time))
       }
 
       blush.setAmount(MathUtils.lerp(blush.amount, BLUSH[emotion], k))

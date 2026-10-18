@@ -3,7 +3,8 @@ import { computed } from 'vue'
 import type { DisplayMessage } from '../composables/useChat'
 import { cleanReply } from '../lib/reply'
 
-const props = defineProps<{ message: DisplayMessage, streaming?: boolean }>()
+const props = defineProps<{ message: DisplayMessage, streaming?: boolean, canSpeak?: boolean }>()
+const emit = defineEmits<{ speak: [] }>()
 
 // *행동 묘사*를 기울임꼴로 분리한다. v-html 없이 안전하게 렌더링.
 const segments = computed(() =>
@@ -23,12 +24,28 @@ const segments = computed(() =>
       </template>
       <span v-if="streaming" class="cursor">▍</span>
     </div>
+    <button
+      v-if="canSpeak && message.role === 'assistant' && message.text"
+      class="speak"
+      title="다시 듣기"
+      aria-label="다시 듣기"
+      @click="emit('speak')"
+    >
+      🔊
+    </button>
   </div>
 </template>
 
 <style scoped>
-.row { display: flex; margin: 10px 0; }
+.row { display: flex; align-items: flex-end; gap: 4px; margin: 10px 0; }
 .row.user { justify-content: flex-end; }
+.speak {
+  background: transparent;
+  padding: 4px;
+  font-size: 0.9rem;
+  opacity: 0.45;
+}
+.speak:hover { opacity: 1; }
 .bubble {
   max-width: 78%;
   padding: 10px 14px;

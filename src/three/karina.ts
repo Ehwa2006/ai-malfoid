@@ -31,7 +31,7 @@ import { drawFace, FACE_SIZE, type FaceState } from './faceTexture'
 import { HEAD_POSE } from './pose'
 import { taperedTube } from './tube'
 import { SOFT_SHADE, toon } from './toon'
-import type { AvatarController, AvatarFrameState } from './types'
+import { mouthOpen, type AvatarController, type AvatarFrameState } from './types'
 
 const R = 0.105 // 머리 반지름
 const NECK_Y = 1.37
@@ -499,10 +499,8 @@ export function createKarina(): AvatarController {
         }
       }
 
-      // 립싱크 (텍스트 스트리밍 중에는 입을 움직인다)
-      face.mouthOpen = state.speaking
-        ? MathUtils.clamp(0.45 + 0.35 * Math.sin(time * 17) + 0.25 * Math.sin(time * 29), 0, 1)
-        : 0
+      // 립싱크: TTS 목소리 크기를 따라가고, 모르면 말하는 동안 여닫는다
+      face.mouthOpen = mouthOpen(state, time)
       face.lookX = MathUtils.clamp(state.lookX, -1, 1)
       face.lookY = MathUtils.clamp(state.lookY, -1, 1)
       redraw()

@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { edgeTts } from './server/edgeTts'
 
 /** OLLAMA_HOST 값("0.0.0.0", "127.0.0.1:11434", "http://host:port")을 접속 주소로 바꾼다 (Ollama와 같은 해석) */
 function ollamaOrigin(value?: string) {
@@ -16,7 +17,7 @@ export default defineConfig(({ mode }) => {
   const ollamaTarget = ollamaOrigin(env.OLLAMA_HOST)
 
   return {
-    plugins: [vue()],
+    plugins: [vue(), edgeTts()],
     // three.js 청크(약 670kB)는 아바타 컴포넌트와 함께 지연 로딩된다
     build: { chunkSizeWarningLimit: 800 },
     server: {

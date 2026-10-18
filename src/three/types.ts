@@ -3,6 +3,8 @@ import type { Emotion } from '../lib/markers'
 
 export interface AvatarFrameState {
   speaking: boolean
+  /** 실제 목소리 크기로 정한 입 벌림 0~1. null이면 speaking 동안 입을 적당히 여닫는다 */
+  mouth: number | null
   /** 포인터 위치, -1 ~ 1 */
   lookX: number
   lookY: number
@@ -20,4 +22,13 @@ export interface AvatarController {
   setEmotion: (emotion: Emotion) => void
   update: (dt: number, state: AvatarFrameState) => void
   dispose: () => void
+}
+
+/** 말하는 동안 입 벌림: 목소리 크기를 알면 그대로, 모르면 적당히 여닫는다 */
+export function mouthOpen(state: AvatarFrameState, time: number): number {
+  if (state.mouth !== null)
+    return Math.min(1, state.mouth * 1.6)
+  if (!state.speaking)
+    return 0
+  return Math.min(1, Math.max(0, 0.55 + 0.4 * Math.sin(time * 17) + 0.2 * Math.sin(time * 29)))
 }

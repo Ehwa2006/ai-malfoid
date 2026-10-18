@@ -2,9 +2,11 @@
 import { onMounted, ref } from 'vue'
 import { listModels, pickModel } from '../lib/ollama'
 import { DEFAULT_MODEL_URL, type Settings } from '../composables/useChat'
+import { EDGE_VOICES } from '../composables/useTts'
 
 const settings = defineModel<Settings>({ required: true })
-const emit = defineEmits<{ 'reset': [], 'close': [], 'model-file': [file: File], 'export-glb': [] }>()
+defineProps<{ voices?: SpeechSynthesisVoice[] }>()
+const emit = defineEmits<{ 'reset': [], 'close': [], 'model-file': [file: File], 'export-glb': [], 'preview-voice': [] }>()
 
 const models = ref<string[]>([])
 const status = ref('')
@@ -97,6 +99,70 @@ onMounted(refresh)
     </template>
     <button v-if="settings.avatarMode === 'procedural'" class="ghost" @click="emit('export-glb')">간이 3D 모델을 .glb로 내보내기</button>
 
+    <fieldset class="tts">
+      <legend>
+        <label class="check">
+          <input v-model="settings.tts.enabled" type="checkbox"> 목소리 (TTS)
+        </label>
+      </legend>
+      <template v-if="settings.tts.enabled">
+        <label>
+          음성 엔진
+          <select v-model="settings.tts.provider">
+            <option value="edge">Edge 신경망 음성 (온라인, 무료, 기본)</option>
+            <option value="browser">브라우저 내장 음성 (오프라인)</option>
+            <option value="openai">OpenAI 호환 서버 (API 키·로컬 서버)</option>
+          </select>
+        </label>
+
+        <label v-if="settings.tts.provider === 'edge'">
+          목소리
+          <select v-model="settings.tts.edgeVoice">
+            <option v-for="v in EDGE_VOICES" :key="v.id" :value="v.id">{{ v.label }}</option>
+          </select>
+        </label>
+
+        <label v-if="settings.tts.provider === 'browser'">
+          목소리 (이 컴퓨터에 설치된 음성)
+          <select v-model="settings.tts.browserVoice">
+            <option value="">자동 (한국어 음성)</option>
+            <option v-for="v in voices ?? []" :key="v.name" :value="v.name">{{ v.name }} ({{ v.lang }})</option>
+          </select>
+        </label>
+
+        <template v-if="settings.tts.provider === 'openai'">
+          <label>
+            서버 주소 (…/v1)
+            <input v-model.trim="settings.tts.openai.url" placeholder="https://api.openai.com/v1">
+          </label>
+          <div class="inline">
+            <label>
+              모델
+              <input v-model.trim="settings.tts.openai.model" placeholder="gpt-4o-mini-tts">
+            </label>
+            <label>
+              목소리
+              <input v-model.trim="settings.tts.openai.voice" placeholder="nova">
+            </label>
+          </div>
+          <label>
+            API 키 (이 브라우저에만 저장됨, 로컬 서버면 비워 두기)
+            <input v-model.trim="settings.tts.openai.apiKey" type="password" autocomplete="off">
+          </label>
+        </template>
+
+        <label>
+          빠르기: {{ settings.tts.rate.toFixed(2) }}배
+          <input v-model.number="settings.tts.rate" type="range" min="0.7" max="1.5" step="0.05">
+        </label>
+        <label v-if="settings.tts.provider !== 'openai'">
+          음 높이: {{ settings.tts.pitch > 0 ? '+' : '' }}{{ settings.tts.pitch }}%
+          <input v-model.number="settings.tts.pitch" type="range" min="-20" max="20" step="1">
+        </label>
+        <button class="ghost" @click="emit('preview-voice')">🔊 목소리 미리 듣기</button>
+      </template>
+    </fieldset>
+
     <button class="danger" @click="confirmReset">대화 & 호감도 초기화</button>
   </div>
 </template>
@@ -114,4 +180,16 @@ label { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; col
 .inline input { flex: 1; min-width: 0; }
 .status { margin: -6px 0 0; font-size: 0.8rem; color: var(--text-dim); }
 .danger { background: #5a1d1d; }
+.tts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 10px 12px 12px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 10px;
+}
+.tts legend { padding: 0 6px; }
+.check { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
+.tts .inline label { flex: 1; min-width: 0; }
 </style>

@@ -26,6 +26,20 @@ export interface Settings {
   avatarMode: 'vrm' | 'procedural' | '2d'
   /** VRM 모드에서 쓸 모델(.vrm/.glb) 주소. 비우면 기본 모델(Malfoy Draconia)을 쓴다. */
   modelUrl: string
+  tts: TtsSettings
+}
+
+export interface TtsSettings {
+  enabled: boolean
+  /** edge: 앱에 내장된 Edge 신경망 음성(온라인) / browser: 브라우저 내장 음성(오프라인) / openai: OpenAI 호환 서버 */
+  provider: 'edge' | 'browser' | 'openai'
+  edgeVoice: string
+  browserVoice: string
+  /** 0.5 ~ 2 (1 = 보통) */
+  rate: number
+  /** -50 ~ 50 (%) */
+  pitch: number
+  openai: { url: string, model: string, voice: string, apiKey: string }
 }
 
 export const DEFAULT_MODEL_URL = `${import.meta.env.BASE_URL}models/malfoy-draconia.vrm`
@@ -38,9 +52,25 @@ const DEFAULT_SETTINGS: Settings = {
   historyLimit: 20,
   avatarMode: 'vrm',
   modelUrl: '',
+  tts: {
+    enabled: true,
+    provider: 'edge',
+    edgeVoice: 'ko-KR-SunHiNeural',
+    browserVoice: '',
+    rate: 1.05,
+    pitch: 6,
+    openai: { url: 'https://api.openai.com/v1', model: 'gpt-4o-mini-tts', voice: 'nova', apiKey: '' },
+  },
 }
 
 const INITIAL_AFFECTION = 20
+
+/** 답변 대사를 실시간으로 받아 가는 쪽 (TTS) */
+export interface ReplyListener {
+  begin: () => void
+  push: (text: string) => void
+  end: () => void
+}
 
 function uid() {
   return Math.random().toString(36).slice(2, 10)
@@ -63,6 +93,8 @@ export function useChat() {
   const settings = useStoredRef<Settings>('malfoid:settings', { ...DEFAULT_SETTINGS })
   // 이전 버전에서 저장된 설정에 새 항목의 기본값을 채운다
   settings.value = { ...DEFAULT_SETTINGS, ...settings.value }
+  settings.value.tts = { ...DEFAULT_SETTINGS.tts, ...settings.value.tts }
+  settings.value.tts.openai = { ...DEFAULT_SETTINGS.tts.openai, ...settings.value.tts.openai }
   // 이전 버전의 '3d'(코드로 만든 모델)는 원본 VRM 모델로 옮긴다
   if (!['vrm', 'procedural', '2d'].includes(settings.value.avatarMode))
     settings.value.avatarMode = 'vrm'
@@ -82,6 +114,7 @@ export function useChat() {
   })
 
   let controller: AbortController | null = null
+  let listener: ReplyListener | null = null
 
   // 설정한 모델이 설치돼 있지 않으면 설치된 모델로 바꿔 둔다 (Ollama가 꺼져 있으면 보내기 할 때 오류로 알린다)
   listModels(settings.value.baseUrl.replace(/\/+$/, ''))
@@ -122,6 +155,7 @@ export function useChat() {
     const parser = new ReplyStreamParser((e) => {
       if (e.type === 'text') {
         reply.text += e.text
+        listener?.push(e.text)
       }
       else if (e.type === 'emote') {
         reply.emotion = e.emotion
@@ -134,6 +168,8 @@ export function useChat() {
 
     isStreaming.value = true
     controller = new AbortController()
+    listener?.begin()
+    let aborted = false
     try {
       await streamChat({
         baseUrl: settings.value.baseUrl.replace(/\/+$/, ''),
@@ -154,7 +190,8 @@ export function useChat() {
     }
     catch (e) {
       parser.flush()
-      if ((e as Error).name !== 'AbortError')
+      aborted = (e as Error).name === 'AbortError'
+      if (!aborted)
         error.value = (e as Error).message
       if (!reply.text.trim())
         messages.value.splice(messages.value.indexOf(reply), 1)
@@ -162,6 +199,9 @@ export function useChat() {
     finally {
       isStreaming.value = false
       controller = null
+      // 중지 버튼으로 멈췄으면 남은 문장은 읽지 않는다
+      if (!aborted)
+        listener?.end()
     }
   }
 
@@ -178,5 +218,9 @@ export function useChat() {
     error.value = null
   }
 
-  return { settings, messages, affection, stage, emotion, isStreaming, error, lastDelta, send, stop, reset }
+  function onReply(l: ReplyListener) {
+    listener = l
+  }
+
+  return { settings, messages, affection, stage, emotion, isStreaming, error, lastDelta, send, stop, reset, onReply }
 }
