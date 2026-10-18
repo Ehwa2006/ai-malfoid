@@ -179,21 +179,24 @@ def setup_meta(vrm1, thumbnail):
     meta.authors.clear()
     meta.authors.add().value = 'HiGuys920'
     meta.copyright_information = (
-        '"Harry Potter - Malfoy Draconia (3D Model)" by HiGuys920, licensed under CC BY 4.0. '
-        'Converted to VRM 1.0 (expressions, spring bones, MToon) for ai-malfoid. '
-        'Harry Potter characters belong to their respective owners.'
+        '"Harry Potter - Malfoy Draconia (3D Model)" by HiGuys920, licensed under CC BY 4.0 '
+        '(https://creativecommons.org/licenses/by/4.0/). Changes: converted to VRM 1.0 with baked '
+        'expressions, spring bones and MToon materials for ai-malfoid. The usage fields mirror CC BY 4.0. '
+        'The license covers the 3D model only; Harry Potter characters belong to their respective owners.'
     )
     meta.references.clear()
     meta.references.add().value = SOURCE_URL
+    # CC BY 4.0은 출처 표기 외의 추가 제한을 금지한다(4.0 2조 a항 5호 B). 그래서 VRM 메타의 이용 조건도
+    # 원본 라이선스와 같게 가장 넓게 열어 두고, 출처 표기만 필수로 둔다.
     meta.avatar_permission = 'everyone'
-    meta.commercial_usage = 'personalNonProfit'
+    meta.commercial_usage = 'corporation'
     meta.credit_notation = 'required'
     meta.allow_redistribution = True
     meta.modification = 'allowModificationRedistribution'
-    meta.allow_excessively_violent_usage = False
-    meta.allow_excessively_sexual_usage = False
-    meta.allow_political_or_religious_usage = False
-    meta.allow_antisocial_or_hate_usage = False
+    meta.allow_excessively_violent_usage = True
+    meta.allow_excessively_sexual_usage = True
+    meta.allow_political_or_religious_usage = True
+    meta.allow_antisocial_or_hate_usage = True
     meta.other_license_url = 'https://creativecommons.org/licenses/by/4.0/'
     if thumbnail and os.path.exists(thumbnail):
         meta.thumbnail_image = bpy.data.images.load(thumbnail)

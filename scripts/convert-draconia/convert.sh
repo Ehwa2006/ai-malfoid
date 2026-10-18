@@ -3,8 +3,8 @@
 #
 #   scripts/convert-draconia/convert.sh "Harry Potter Series - Malfoy Draconia Female (3D Model).zip"
 #
-# 필요한 것: python3(3.13, bpy 휠과 같은 버전), git, unzip. 처음 실행할 때 .cache/에
-# Blender(bpy)와 VRM Add-on for Blender를 받아 둔다.
+# 필요한 것: Python 3.13(bpy 휠과 같은 버전, 다르면 PYTHON=python3.13 으로 지정), git, unzip.
+# 처음 실행할 때 .cache/에 Blender(bpy)와 VRM Add-on for Blender를 받아 둔다.
 set -euo pipefail
 
 ZIP="${1:?원본 모델 zip 경로를 주세요 (README 참고)}"
@@ -15,9 +15,15 @@ OUT="${2:-$ROOT/public/models/malfoy-draconia.vrm}"
 BPY_VERSION=5.2.2
 VRM_ADDON_TAG=v4.10.2
 
+PYTHON="${PYTHON:-python3}"
 mkdir -p "$CACHE"
 if [ ! -x "$CACHE/venv/bin/python" ]; then
-  python3 -m venv "$CACHE/venv"
+  # bpy 휠은 특정 파이썬 버전용으로만 나온다 (bpy 5.2 → Python 3.13)
+  if ! "$PYTHON" -c 'import sys; sys.exit(sys.version_info[:2] != (3, 13))'; then
+    echo "bpy $BPY_VERSION 에는 Python 3.13이 필요합니다. PYTHON=python3.13 $0 ... 처럼 지정해 주세요." >&2
+    exit 1
+  fi
+  "$PYTHON" -m venv "$CACHE/venv"
   "$CACHE/venv/bin/pip" install --quiet "bpy==$BPY_VERSION"
 fi
 if [ ! -d "$CACHE/vrm-addon" ]; then

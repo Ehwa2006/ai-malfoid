@@ -15,6 +15,8 @@ export interface AvatarController {
   frame: { target: Vector3, height: number }
   /** 모델 재질에 맞춘 조명 세기 (없으면 기본값) */
   lighting?: { hemisphere: number, key: number, rim: number }
+  /** false면 OutlineEffect 없이 그린다 (재질이 외곽선을 직접 그리는 MToon 등). 기본 true */
+  outlineEffect?: boolean
   setEmotion: (emotion: Emotion) => void
   update: (dt: number, state: AvatarFrameState) => void
   dispose: () => void

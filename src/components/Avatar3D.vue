@@ -53,19 +53,28 @@ function frameCamera() {
   renderer?.setSize(w, h, false)
 }
 
+// 불러오는 도중 모델이 바뀌거나 컴포넌트가 사라지면, 늦게 끝난 이전 로드 결과는 버린다
+let loadSeq = 0
+let unmounted = false
+
 async function setAvatar(url: string | null | undefined) {
+  const seq = ++loadSeq
   loading.value = true
   let next: AvatarController
   try {
     next = url ? await (await import('../three/vrm')).loadModel(url) : createKarina()
   }
   catch (e) {
+    if (seq !== loadSeq || unmounted)
+      return
     emit('error', `3D 모델을 불러오지 못했어요: ${(e as Error).message}`)
     next = createKarina()
   }
-  finally {
-    loading.value = false
+  if (seq !== loadSeq || unmounted) {
+    next.dispose()
+    return
   }
+  loading.value = false
   if (avatar) {
     scene.remove(avatar.object)
     avatar.dispose()
@@ -98,7 +107,10 @@ function loop(now: number) {
   if (renderer && effect) {
     // OutlineEffect는 autoClear 기본값이 없어 직접 지워야 이전 프레임이 남지 않는다
     renderer.clear()
-    effect.render(scene, camera)
+    if (avatar?.outlineEffect === false)
+      renderer.render(scene, camera)
+    else
+      effect.render(scene, camera)
   }
 }
 
@@ -118,6 +130,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  unmounted = true
   cancelAnimationFrame(frameId)
   resizeObserver?.disconnect()
   window.removeEventListener('pointermove', onPointerMove)

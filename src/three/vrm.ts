@@ -88,6 +88,8 @@ function vrmController(vrm: VRM): AvatarController {
     frame: { target: new Vector3(0, headPos.y + 0.03, 0), height: 0.42 },
     // MToon 재질에 맞춘 조명 (간이 모델보다 환경광을 조금 줄인다)
     lighting: { hemisphere: 1.4, key: 2.2, rim: 0.5 },
+    // MToon이 외곽선을 직접 그리므로 OutlineEffect를 또 씌우지 않는다 (이중 외곽선, 두 번 렌더링)
+    outlineEffect: false,
     setEmotion(e) {
       emotion = e
     },
