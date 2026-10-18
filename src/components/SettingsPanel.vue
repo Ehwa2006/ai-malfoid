@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { listModels } from '../lib/ollama'
+import { listModels, pickModel } from '../lib/ollama'
 import { DEFAULT_MODEL_URL, type Settings } from '../composables/useChat'
 
 const settings = defineModel<Settings>({ required: true })
@@ -15,9 +15,8 @@ async function refresh() {
     models.value = await listModels(settings.value.baseUrl.replace(/\/+$/, ''))
     status.value = models.value.length
       ? `✅ Ollama 연결됨 (모델 ${models.value.length}개)`
-      : '⚠️ 설치된 모델이 없어요. `ollama pull llama3.1:8b` 를 실행해 주세요.'
-    if (models.value.length && !models.value.includes(settings.value.model))
-      settings.value.model = models.value[0]
+      : '⚠️ 설치된 모델이 없어요. `ollama pull exaone3.5:7.8b` 를 실행해 주세요.'
+    settings.value.model = pickModel(models.value, settings.value.model)
   }
   catch (e) {
     status.value = `❌ ${(e as Error).message}`

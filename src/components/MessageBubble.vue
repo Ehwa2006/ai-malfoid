@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { DisplayMessage } from '../composables/useChat'
+import { cleanReply } from '../lib/reply'
 
 const props = defineProps<{ message: DisplayMessage, streaming?: boolean }>()
 
 // *행동 묘사*를 기울임꼴로 분리한다. v-html 없이 안전하게 렌더링.
 const segments = computed(() =>
-  props.message.text.split(/(\*[^*]+\*)/g).filter(Boolean).map(part => ({
+  (props.message.role === 'assistant' ? cleanReply(props.message.text) : props.message.text).split(/(\*[^*]+\*)/g).filter(Boolean).map(part => ({
     action: part.length > 2 && part.startsWith('*') && part.endsWith('*'),
     text: part.startsWith('*') && part.endsWith('*') && part.length > 2 ? part.slice(1, -1) : part,
   })),

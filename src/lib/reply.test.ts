@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MarkerEvent } from './markers'
-import { formatReply, ReplyStreamParser } from './reply'
+import { cleanReply, formatReply, ReplyStreamParser } from './reply'
 
 function run(chunks: string[]) {
   const events: MarkerEvent[] = []
@@ -56,5 +56,25 @@ describe('ReplyStreamParser', () => {
     const { text, events } = run([formatReply({ emotion: 'sad', affection: -2, reply: '…"그날" 얘기는 하지 마.' })])
     expect(text).toBe('…"그날" 얘기는 하지 마.')
     expect(events).toContainEqual({ type: 'emote', emotion: 'sad' })
+  })
+})
+
+describe('cleanReply', () => {
+  // qwen2.5:7b로 실제 대화했을 때 나온 깨진 출력들
+  it('행동 묘사 안의 영어·코드 토큰과 이모지를 지운다', () => {
+    expect(cleanReply('* createStatefully_raises_eyebrow_and_crosses_arms* 퀴디치 연습이라구?')).toBe('퀴디치 연습이라구?')
+    expect(cleanReply('*눈썹을 치켜📐, 씩 웃으며* 안녕, 날라리.')).toBe('*눈썹을 치켜, 씩 웃으며* 안녕, 날라리.')
+    expect(cleanReply('*빨간 뺨을 감추려고 턱을 내리/slick* 어머.')).toBe('*빨간 뺨을 감추려고 턱을 내리* 어머.')
+    expect(cleanReply('*createState를 꽔며 콧김을 뿜는다* 존중하라.')).toBe('*꽔며 콧김을 뿜는다* 존중하라.')
+    expect(cleanReply('*😄 미소를 보이며* 귀여운 거라니.')).toBe('*미소를 보이며* 귀여운 거라니.')
+  })
+
+  it('정상적인 문장과 대사 속 영어는 건드리지 않는다', () => {
+    const ok = '*귀 끝이 붉어진다* 흥, Harry라고 부르지 마. *고개를 돌린다*'
+    expect(cleanReply(ok)).toBe(ok)
+  })
+
+  it('닫히지 않은 행동 묘사(스트리밍 중)는 그대로 둔다', () => {
+    expect(cleanReply('*눈을 가늘게 뜨며 create')).toBe('*눈을 가늘게 뜨며 create')
   })
 })

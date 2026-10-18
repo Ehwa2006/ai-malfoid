@@ -32,6 +32,21 @@ export async function listModels(baseUrl: string, signal?: AbortSignal): Promise
   return (data.models ?? []).map(m => m.name)
 }
 
+// 실제 대화 테스트(CPU, 2026-10)에서 한국어 캐릭터 대화가 잘 된 순서
+const PREFERRED_MODELS = [/^exaone3\.5/, /^qwen2\.5:(7|14|32|72)b/, /^gemma[23]/, /^llama3/, /^qwen2\.5:3b/]
+
+/** 설정한 모델이 설치돼 있지 않으면, 설치된 모델 중 추천 순서대로 하나를 고른다. */
+export function pickModel(installed: string[], current: string): string {
+  if (!installed.length || installed.includes(current))
+    return current
+  for (const pattern of PREFERRED_MODELS) {
+    const found = installed.find(name => pattern.test(name))
+    if (found)
+      return found
+  }
+  return installed[0]
+}
+
 /** /api/chat 스트리밍 호출. 응답은 줄 단위 JSON(NDJSON)으로 온다. */
 export async function streamChat(opts: ChatOptions): Promise<void> {
   const res = await fetch(`${opts.baseUrl}/api/chat`, {

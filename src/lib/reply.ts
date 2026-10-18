@@ -113,3 +113,26 @@ export class ReplyStreamParser {
       this.text.push(out)
   }
 }
+
+/**
+ * 행동 묘사(*…*) 안의 깨진 토큰을 지운다.
+ * Qwen처럼 한글을 바이트 단위로 쪼개는 모델은 JSON 제한 디코딩에서 한글 첫 토큰이 막히면
+ * `*createStatefully_raises_eyebrow*`, `*눈썹을 치켜📐*` 같은 영어·코드·이모지를 대신 낸다.
+ * 한국어 행동 묘사에는 로마자와 이모지가 들어갈 일이 없으므로 행동 묘사 안에서만 걷어낸다.
+ */
+export function cleanReply(text: string): string {
+  return text
+    .replace(/\*([^*]*)\*/g, (_, body: string) => {
+      const cleaned = body
+        .replace(/[A-Za-z_/\\][\w/\\]*/g, '')
+        .replace(/\p{Extended_Pictographic}/gu, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+        // 지운 단어에 붙어 있던 조사만 남으면 함께 지운다 ("createState를 …" → "를 …")
+        .replace(/^(을|를|이|가|은|는|의|로|으로|와|과)(\s|$)/, '')
+        .replace(/^[,.\s]+/, '')
+      return /[가-힣]/.test(cleaned) ? `*${cleaned}*` : ''
+    })
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
+}

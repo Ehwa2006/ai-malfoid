@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue'
-import { streamChat, type ChatMessage } from '../lib/ollama'
+import { listModels, pickModel, streamChat, type ChatMessage } from '../lib/ollama'
 import { MarkerParser, type Emotion } from '../lib/markers'
-import { formatReply, REPLY_SCHEMA, ReplyStreamParser } from '../lib/reply'
+import { cleanReply, formatReply, REPLY_SCHEMA, ReplyStreamParser } from '../lib/reply'
 import { clampAffection, clampDelta, stageOf } from '../lib/affection'
 import { buildGreeting, buildSystemPrompt } from '../lib/persona'
 import { useStoredRef } from './useStoredRef'
@@ -32,7 +32,7 @@ export const DEFAULT_MODEL_URL = `${import.meta.env.BASE_URL}models/malfoy-draco
 
 const DEFAULT_SETTINGS: Settings = {
   baseUrl: '/ollama',
-  model: 'llama3.1:8b',
+  model: 'exaone3.5:7.8b',
   userName: '포터',
   temperature: 0.8,
   historyLimit: 20,
@@ -82,6 +82,13 @@ export function useChat() {
   })
 
   let controller: AbortController | null = null
+
+  // 설정한 모델이 설치돼 있지 않으면 설치된 모델로 바꿔 둔다 (Ollama가 꺼져 있으면 보내기 할 때 오류로 알린다)
+  listModels(settings.value.baseUrl.replace(/\/+$/, ''))
+    .then((installed) => {
+      settings.value.model = pickModel(installed, settings.value.model)
+    })
+    .catch(() => {})
 
   function toLlmHistory(): ChatMessage[] {
     // 카리나의 지난 답변은 모델이 내야 하는 것과 같은 JSON 형식으로 되돌려 보내 형식을 유지시킨다
@@ -138,7 +145,7 @@ export function useChat() {
         onToken: t => parser.push(t),
       })
       parser.flush()
-      reply.text = reply.text.trim()
+      reply.text = cleanReply(reply.text)
 
       const applied = clampDelta(delta)
       reply.affectionDelta = applied
