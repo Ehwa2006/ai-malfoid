@@ -14,6 +14,14 @@ describe('persona', () => {
     expect(buildSystemPrompt('지민', 20)).toContain('"지민"은(는) 전쟁 후 새로 알게 된 사람')
   })
 
+  it('JSON 출력 형식과 감정 목록, 호칭 규칙을 알려준다', () => {
+    const prompt = buildSystemPrompt('포터', 20)
+    expect(prompt).toContain('"emotion"')
+    expect(prompt).toContain('flustered')
+    expect(prompt).toContain('상대를 "포터"라고 부른다')
+    expect(prompt).not.toContain('<|EMOTE')
+  })
+
   it('인사말에는 표정 마커만 있고 이름이 들어간다', () => {
     expect(stripMarkers(buildGreeting('지민'))).toContain('지민')
     expect(buildGreeting('포터')).toMatch(/^<\|EMOTE:smirk\|>/)

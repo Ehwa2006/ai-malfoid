@@ -1,6 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import { streamChat, type ChatMessage } from '../lib/ollama'
 import { MarkerParser, type Emotion } from '../lib/markers'
+import { formatReply, REPLY_SCHEMA, ReplyStreamParser } from '../lib/reply'
 import { clampAffection, clampDelta, stageOf } from '../lib/affection'
 import { buildGreeting, buildSystemPrompt } from '../lib/persona'
 import { useStoredRef } from './useStoredRef'
@@ -83,11 +84,12 @@ export function useChat() {
   let controller: AbortController | null = null
 
   function toLlmHistory(): ChatMessage[] {
-    // 표정/호감도 마커는 UI 메타데이터로 분리 저장했으므로, 히스토리엔 텍스트만 보낸다.
-    // assistant 메시지엔 형식 유지를 위해 표정 토큰을 다시 붙여준다.
+    // 카리나의 지난 답변은 모델이 내야 하는 것과 같은 JSON 형식으로 되돌려 보내 형식을 유지시킨다
     return messages.value.slice(-settings.value.historyLimit).map(m => ({
       role: m.role,
-      content: m.role === 'assistant' && m.emotion ? `<|EMOTE:${m.emotion}|>${m.text}` : m.text,
+      content: m.role === 'assistant'
+        ? formatReply({ emotion: m.emotion, affection: m.affectionDelta, reply: m.text })
+        : m.text,
     }))
   }
 
@@ -110,7 +112,7 @@ export function useChat() {
     const reply = messages.value[messages.value.length - 1]
     let delta = 0
 
-    const parser = new MarkerParser((e) => {
+    const parser = new ReplyStreamParser((e) => {
       if (e.type === 'text') {
         reply.text += e.text
       }
@@ -131,6 +133,7 @@ export function useChat() {
         model: settings.value.model,
         temperature: settings.value.temperature,
         messages: llmMessages,
+        format: REPLY_SCHEMA,
         signal: controller.signal,
         onToken: t => parser.push(t),
       })

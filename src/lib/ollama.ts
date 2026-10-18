@@ -12,6 +12,8 @@ export interface ChatOptions {
   model: string
   messages: ChatMessage[]
   temperature?: number
+  /** 구조화 출력용 JSON 스키마 (Ollama `format`) */
+  format?: unknown
   signal?: AbortSignal
   onToken: (token: string) => void
 }
@@ -40,6 +42,7 @@ export async function streamChat(opts: ChatOptions): Promise<void> {
       model: opts.model,
       messages: opts.messages,
       stream: true,
+      ...(opts.format ? { format: opts.format } : {}),
       options: { temperature: opts.temperature ?? 0.8 },
     }),
   })
