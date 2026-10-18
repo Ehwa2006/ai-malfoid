@@ -37,7 +37,9 @@ async function readJson(req: IncomingMessage): Promise<SpeechRequest> {
     if (body.length > 16_000)
       throw new Error('request too large')
   }
-  return JSON.parse(body || '{}') as SpeechRequest
+  const data: unknown = JSON.parse(body || '{}')
+  // "null", 숫자, 배열 같은 본문은 빈 요청으로 본다
+  return data && typeof data === 'object' && !Array.isArray(data) ? data as SpeechRequest : {}
 }
 
 function sendError(res: ServerResponse, status: number, message: string) {
@@ -46,9 +48,19 @@ function sendError(res: ServerResponse, status: number, message: string) {
   res.end(JSON.stringify({ error: { message } }))
 }
 
-const handler: Connect.NextHandleFunction = async (req, res, next) => {
+const handler: Connect.NextHandleFunction = (req, res, next) => {
   if (req.url?.split('?')[0] !== EDGE_TTS_PATH)
     return next()
+  // 비동기 처리 중 예상 못 한 오류가 개발 서버 전체를 죽이지 않도록 여기서 받는다
+  speak(req, res).catch((e) => {
+    if (!res.headersSent)
+      sendError(res, 500, (e as Error).message)
+    else
+      res.end()
+  })
+}
+
+async function speak(req: IncomingMessage, res: ServerResponse) {
   if (req.method !== 'POST')
     return sendError(res, 405, 'POST only')
 
@@ -72,8 +84,9 @@ const handler: Connect.NextHandleFunction = async (req, res, next) => {
     for await (const chunk of audioStream)
       chunks.push(chunk as Buffer)
     const audio = Buffer.concat(chunks)
+    // "ㅋㅋ"처럼 읽을 수 없는 글자만 있으면 소리가 비어 온다. 이 문장 문제이므로 4xx로 알린다(앱은 건너뛴다)
     if (!audio.length)
-      return sendError(res, 502, 'empty audio from Edge TTS')
+      return sendError(res, 422, 'empty audio from Edge TTS (nothing speakable in input)')
     res.statusCode = 200
     res.setHeader('Content-Type', 'audio/mpeg')
     res.setHeader('Cache-Control', 'no-store')

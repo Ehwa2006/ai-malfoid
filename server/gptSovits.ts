@@ -65,7 +65,8 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
     if (body.length > 16_000)
       throw new Error('request too large')
   }
-  return JSON.parse(body || '{}')
+  const data: unknown = JSON.parse(body || '{}')
+  return data && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : {}
 }
 
 function sendJson(res: ServerResponse, status: number, data: unknown) {
@@ -79,7 +80,17 @@ export function gptSovits(options: { packFile: string, url?: string }): Plugin {
   const packDir = dirname(packFile)
   const target = gsvOrigin(options.url)
 
-  const handler: Connect.NextHandleFunction = async (req, res, next) => {
+  const handler: Connect.NextHandleFunction = (req, res, next) => {
+    // 비동기 처리 중 예상 못 한 오류가 개발 서버 전체를 죽이지 않도록 여기서 받는다
+    handle(req, res, next).catch((e) => {
+      if (!res.headersSent)
+        sendJson(res, 500, { error: { message: (e as Error).message } })
+      else
+        res.end()
+    })
+  }
+
+  const handle = async (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => {
     const path = req.url?.split('?')[0]
     if (path === `${GSV_PATH}/status`) {
       // 앱이 설정 화면과 자동 선택에 쓰는 상태 확인

@@ -26,6 +26,17 @@ describe('SpeechChunker', () => {
     expect(splitSpeech('… 흥! 😤 됐어.')).toEqual(['흥!', '됐어.'])
   })
 
+  it('자모만 있는 조각(ㅋㅋ, ㅠㅠ, ㅎㅎ~)은 건너뛴다', () => {
+    // Edge 음성은 이런 조각에 소리를 만들지 못한다
+    expect(splitSpeech('흥. ㅎㅎ~ 그래서 뭐? ㅠㅠ\n진짜야. ㅋㅋㅋ')).toEqual(['흥.', '그래서 뭐?', '진짜야.'])
+    expect(splitSpeech('ㅋㅋ 바보.')).toEqual(['ㅋㅋ 바보.'])
+  })
+
+  it('닫히지 않은 *는 답변 끝이나 줄바꿈에서 대사로 되돌린다', () => {
+    expect(splitSpeech('*고개를 홱 돌리며 흥, 포터. 오늘은 봐줄게.')).toEqual(['고개를 홱 돌리며 흥, 포터.', '오늘은 봐줄게.'])
+    expect(splitSpeech('*팔짱을 끼며\n어머, 포터. *웃는다* 됐어.')).toEqual(['팔짱을 끼며', '어머, 포터.', '됐어.'])
+  })
+
   it('마침표 없이 긴 문장은 쉼표에서 끊는다', () => {
     const long = `${'말포이가의 영애는 '.repeat(6)}언제나 최고야, ${'그러니까 너도 '.repeat(5)}인정해`
     const parts = new SpeechChunker().push(long)

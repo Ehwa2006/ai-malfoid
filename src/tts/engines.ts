@@ -1,15 +1,33 @@
-// TTS 재생 엔진. 문장을 하나씩 받아 순서대로 읽는다.
-//   HttpTtsEngine    — OpenAI 호환 /audio/speech 엔드포인트(내장 Edge 음성 서버, OpenAI, 로컬 TTS 서버)
-//                      소리를 Web Audio로 재생하며 음량으로 입 모양(립싱크)을 계산한다.
+// TTS 재생 엔진. 문장 하나를 "준비(prepare)"하면 소리를 미리 받아 두고, play()로 재생한다.
+// 재생 순서는 useTts가 엔진에 상관없이 하나의 줄로 관리하므로 목소리가 겹치지 않는다.
+//   HttpTtsEngine    — AI 음성(GPT-SoVITS)·Edge 음성·OpenAI 호환 서버. Web Audio로 재생하며 음량으로 입 모양을 계산한다.
 //   BrowserTtsEngine — 브라우저 내장 음성(speechSynthesis). 오프라인, 설치 필요 없음. 음량은 알 수 없다.
 
+export interface PreparedSpeech {
+  /** 다 읽으면 끝난다. 읽지 못하면 TtsError로 실패한다 */
+  play: () => Promise<void>
+  /** 받던 소리와 재생을 멈춘다 (play는 바로 끝난다) */
+  cancel: () => void
+}
+
 export interface TtsEngine {
-  /** 문장 하나를 재생 대기열에 넣는다 */
-  enqueue: (text: string) => void
-  /** 재생 중인 소리와 대기열을 모두 멈춘다 */
-  stop: () => void
+  /** 문장 하나를 준비한다. HTTP 엔진은 이때 소리를 미리 받기 시작한다 */
+  prepare: (text: string) => PreparedSpeech
   /** 0~1 입 벌림 정도. 소리 크기를 알 수 없으면 null */
   level: () => number | null
+  /** 사용자 입력 안에서 불러 소리 재생을 허락받는다 */
+  unlock?: () => void
+}
+
+/**
+ * 읽지 못한 이유.
+ * - content: 서버는 응답했지만 이 문장을 소리로 만들 수 없었다("ㅋㅋ"처럼). 이 문장만 건너뛴다.
+ * - unavailable: 서버에 닿지 못했거나 서버 쪽 오류. 다음 엔진으로 넘어간다.
+ */
+export class TtsError extends Error {
+  constructor(message: string, readonly kind: 'content' | 'unavailable') {
+    super(message)
+  }
 }
 
 export interface HttpTtsOptions {
@@ -22,21 +40,11 @@ export class HttpTtsEngine implements TtsEngine {
   private ctx: AudioContext | null = null
   private analyser: AnalyserNode | null = null
   private samples: Float32Array<ArrayBuffer> | null = null
-  private chain: Promise<void> = Promise.resolve()
-  private generation = 0
-  private abort = new AbortController()
-  private current: AudioBufferSourceNode | null = null
-  private pending = 0
+  private playing: AudioBufferSourceNode | null = null
   private smoothed = 0
 
-  constructor(
-    private readonly options: () => HttpTtsOptions,
-    private readonly onSpeaking: (speaking: boolean) => void,
-    /** 이 문장을 재생하지 못했을 때 (서버 꺼짐, 인터넷 끊김 등) */
-    private readonly onFailure: (text: string, error: Error) => void,
-  ) {}
+  constructor(private readonly options: () => HttpTtsOptions) {}
 
-  /** 사용자 입력(클릭·엔터) 안에서 불러야 브라우저가 소리 재생을 허락한다 */
   unlock(): void {
     if (!this.ctx) {
       this.ctx = new AudioContext()
@@ -48,49 +56,44 @@ export class HttpTtsEngine implements TtsEngine {
     void this.ctx.resume()
   }
 
-  enqueue(text: string): void {
+  prepare(text: string): PreparedSpeech {
     this.unlock()
-    const generation = this.generation
-    this.pending++
-    this.onSpeaking(true)
-    // 앞 문장을 읽는 동안 다음 문장 소리를 미리 받아 둔다
-    const audio = this.fetchAudio(text, this.abort.signal)
-    audio.catch(() => {}) // 실패는 아래 순서대로 처리한다
-    this.chain = this.chain.then(async () => {
-      if (generation !== this.generation)
-        return
-      try {
+    const abort = new AbortController()
+    let source: AudioBufferSourceNode | null = null
+    let finish: (() => void) | null = null
+    // 앞 문장을 읽는 동안 이 문장의 소리를 미리 받아 둔다
+    const audio = this.fetchAudio(text, abort.signal)
+    audio.catch(() => {})
+    return {
+      play: async () => {
         const buffer = await audio
-        if (generation === this.generation)
-          await this.play(buffer)
-      }
-      catch (e) {
-        if (generation === this.generation)
-          this.onFailure(text, e as Error)
-      }
-      finally {
-        if (generation === this.generation && --this.pending === 0)
-          this.onSpeaking(false)
-      }
-    })
-  }
-
-  stop(): void {
-    this.generation++
-    this.abort.abort()
-    this.abort = new AbortController()
-    try {
-      this.current?.stop()
+        if (abort.signal.aborted)
+          return
+        await new Promise<void>((resolve) => {
+          finish = resolve
+          source = this.ctx!.createBufferSource()
+          source.buffer = buffer
+          source.connect(this.analyser!)
+          source.onended = () => resolve()
+          this.playing = source
+          source.start()
+        })
+        if (this.playing === source)
+          this.playing = null
+      },
+      cancel: () => {
+        abort.abort()
+        try {
+          source?.stop()
+        }
+        catch {}
+        finish?.()
+      },
     }
-    catch {}
-    this.current = null
-    this.pending = 0
-    this.chain = Promise.resolve()
-    this.onSpeaking(false)
   }
 
   level(): number | null {
-    if (!this.analyser || !this.samples || !this.current)
+    if (!this.analyser || !this.samples || !this.playing)
       return 0
     this.analyser.getFloatTimeDomainData(this.samples)
     let sum = 0
@@ -105,33 +108,30 @@ export class HttpTtsEngine implements TtsEngine {
 
   private async fetchAudio(text: string, signal: AbortSignal): Promise<AudioBuffer> {
     const { url, headers, body } = this.options()
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...headers },
-      body: JSON.stringify({ ...body, input: text }),
-      signal,
-    })
-    if (!res.ok) {
-      const detail = await res.text().catch(() => '')
-      throw new Error(`음성 서버 응답 ${res.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`)
+    let res: Response
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({ ...body, input: text }),
+        signal,
+      })
     }
-    const data = await res.arrayBuffer()
-    return this.ctx!.decodeAudioData(data)
-  }
-
-  private play(buffer: AudioBuffer): Promise<void> {
-    return new Promise((resolve) => {
-      const source = this.ctx!.createBufferSource()
-      source.buffer = buffer
-      source.connect(this.analyser!)
-      source.onended = () => {
-        if (this.current === source)
-          this.current = null
-        resolve()
-      }
-      this.current = source
-      source.start()
-    })
+    catch (e) {
+      throw new TtsError((e as Error).message, 'unavailable')
+    }
+    if (!res.ok) {
+      const detail = (await res.text().catch(() => '')).slice(0, 200)
+      // 4xx는 이 문장 자체의 문제(빈 문장, 읽을 수 없는 글자). 서버·연결 문제는 5xx로 온다.
+      // 우리 Edge 서버는 소리가 비어 있으면 422를 돌려준다.
+      throw new TtsError(`음성 서버 응답 ${res.status}${detail ? `: ${detail}` : ''}`, res.status < 500 ? 'content' : 'unavailable')
+    }
+    try {
+      return await this.ctx!.decodeAudioData(await res.arrayBuffer())
+    }
+    catch (e) {
+      throw new TtsError(`소리를 해석하지 못했어요: ${(e as Error).message}`, 'content')
+    }
   }
 }
 
@@ -155,40 +155,34 @@ export function browserVoices(): SpeechSynthesisVoice[] {
 }
 
 export class BrowserTtsEngine implements TtsEngine {
-  private pending = 0
+  constructor(private readonly options: () => BrowserTtsOptions) {}
 
-  constructor(
-    private readonly options: () => BrowserTtsOptions,
-    private readonly onSpeaking: (speaking: boolean) => void,
-  ) {}
-
-  enqueue(text: string): void {
-    if (!browserTtsSupported())
-      return
-    const { voiceName, rate, pitch } = this.options()
-    const voices = browserVoices()
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.lang = 'ko-KR'
-    utterance.voice = voices.find(v => v.name === voiceName) ?? voices.find(v => v.lang.startsWith('ko')) ?? null
-    utterance.rate = rate
-    utterance.pitch = Math.min(2, Math.max(0, 1 + pitch / 50))
-    this.pending++
-    this.onSpeaking(true)
-    const done = () => {
-      this.pending = Math.max(0, this.pending - 1)
-      if (this.pending === 0)
-        this.onSpeaking(false)
+  prepare(text: string): PreparedSpeech {
+    let utterance: SpeechSynthesisUtterance | null = null
+    let finish: (() => void) | null = null
+    return {
+      play: () => new Promise<void>((resolve, reject) => {
+        if (!browserTtsSupported())
+          return reject(new TtsError('이 브라우저는 음성 합성을 지원하지 않아요', 'unavailable'))
+        const { voiceName, rate, pitch } = this.options()
+        const voices = browserVoices()
+        utterance = new SpeechSynthesisUtterance(text)
+        utterance.lang = 'ko-KR'
+        utterance.voice = voices.find(v => v.name === voiceName) ?? voices.find(v => v.lang.startsWith('ko')) ?? null
+        utterance.rate = rate
+        utterance.pitch = Math.min(2, Math.max(0, 1 + pitch / 50))
+        finish = resolve
+        // 이 발화의 이벤트만 이 약속을 끝낸다 (취소된 앞 발화의 늦은 이벤트에 휘둘리지 않는다)
+        utterance.onend = () => resolve()
+        utterance.onerror = () => resolve()
+        speechSynthesis.speak(utterance)
+      }),
+      cancel: () => {
+        if (utterance && browserTtsSupported())
+          speechSynthesis.cancel()
+        finish?.()
+      },
     }
-    utterance.onend = done
-    utterance.onerror = done
-    speechSynthesis.speak(utterance)
-  }
-
-  stop(): void {
-    this.pending = 0
-    if (browserTtsSupported())
-      speechSynthesis.cancel()
-    this.onSpeaking(false)
   }
 
   level(): number | null {

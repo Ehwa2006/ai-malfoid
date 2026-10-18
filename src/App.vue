@@ -229,18 +229,7 @@ h1 { margin: 8px 0 0; font-size: 1.3rem; letter-spacing: 0.04em; }
   .stage :deep(.avatar) { max-width: 90px; }
   .stage :deep(.avatar3d) { max-width: 120px; }
   h1, .sub { display: none; }
-  .messages, .notice {
-  margin: 0 24px 8px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: #2a2a1a;
-  color: #e8dfa8;
-  font-size: 0.85rem;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.notice button { margin-left: auto; padding: 2px 8px; }
-.composer { padding-left: 16px; padding-right: 16px; }
+  .messages, .composer { padding-left: 16px; padding-right: 16px; }
+  .notice, .error { margin-left: 16px; margin-right: 16px; }
 }
 </style>

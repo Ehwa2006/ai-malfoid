@@ -12,34 +12,54 @@ function normalize(text: string): string {
     .trim()
 }
 
-/** 글자나 숫자가 하나도 없는 조각("…", "?!")은 읽지 않는다 */
+/**
+ * 읽을 글자가 있는 조각만 읽는다. "…", "?!" 그리고 "ㅋㅋ", "ㅠㅠ", "ㅎㅎ~"처럼 자모만 있는 조각은
+ * 음성 엔진이 소리를 만들지 못하므로 건너뛴다.
+ */
 function speakable(text: string): boolean {
-  return /[\p{L}\p{N}]/u.test(text)
+  return /[가-힣A-Za-z0-9\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(text)
 }
 
 export class SpeechChunker {
   private inAction = false
+  /** 여는 '*' 뒤의 글자. 닫는 '*'가 오면 버리고, 안 오면(줄바꿈·답변 끝) 대사로 되돌린다 */
+  private action = ''
   private pending = ''
 
   /** 새로 들어온 대사 조각을 넣고, 읽을 준비가 된 문장들을 돌려준다 */
   push(text: string): string[] {
     for (const ch of text) {
       if (ch === '*') {
+        if (this.inAction)
+          this.action = '' // 닫혔다: 행동 묘사이므로 읽지 않는다
         this.inAction = !this.inAction
         this.pending += ' '
         continue
       }
-      if (!this.inAction)
+      if (!this.inAction) {
         this.pending += ch
+        continue
+      }
+      if (ch === '\n') {
+        // 줄이 바뀔 때까지 닫히지 않은 '*'는 행동 묘사가 아니라 잘못 붙은 기호로 본다
+        // (화면에도 대사로 보인다)
+        this.pending += `${this.action}\n`
+        this.action = ''
+        this.inAction = false
+        continue
+      }
+      this.action += ch
     }
     return this.drain(false)
   }
 
   /** 답변이 끝났을 때 남은 문장을 모두 돌려준다 */
   flush(): string[] {
-    const out = this.drain(true)
+    if (this.inAction)
+      this.pending += this.action
+    this.action = ''
     this.inAction = false
-    return out
+    return this.drain(true)
   }
 
   private drain(final: boolean): string[] {
