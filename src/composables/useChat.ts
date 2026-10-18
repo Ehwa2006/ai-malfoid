@@ -21,11 +21,13 @@ export interface Settings {
   temperature: number
   /** LLM에 보낼 최근 메시지 수 (컨텍스트 절약) */
   historyLimit: number
-  /** 아바타 표시 방식 */
-  avatarMode: '3d' | '2d'
-  /** 외부 3D 모델(.vrm/.glb) 주소. 비우면 직접 만든 3D 모델을 쓴다. */
+  /** 아바타 표시 방식: 원본 VRM 모델 / 코드로 만든 3D 모델 / 2D SVG */
+  avatarMode: 'vrm' | 'procedural' | '2d'
+  /** VRM 모드에서 쓸 모델(.vrm/.glb) 주소. 비우면 기본 모델(Malfoy Draconia)을 쓴다. */
   modelUrl: string
 }
+
+export const DEFAULT_MODEL_URL = `${import.meta.env.BASE_URL}models/malfoy-draconia.vrm`
 
 const DEFAULT_SETTINGS: Settings = {
   baseUrl: '/ollama',
@@ -33,7 +35,7 @@ const DEFAULT_SETTINGS: Settings = {
   userName: '포터',
   temperature: 0.8,
   historyLimit: 20,
-  avatarMode: '3d',
+  avatarMode: 'vrm',
   modelUrl: '',
 }
 
@@ -60,6 +62,9 @@ export function useChat() {
   const settings = useStoredRef<Settings>('malfoid:settings', { ...DEFAULT_SETTINGS })
   // 이전 버전에서 저장된 설정에 새 항목의 기본값을 채운다
   settings.value = { ...DEFAULT_SETTINGS, ...settings.value }
+  // 이전 버전의 '3d'(코드로 만든 모델)는 원본 VRM 모델로 옮긴다
+  if (!['vrm', 'procedural', '2d'].includes(settings.value.avatarMode))
+    settings.value.avatarMode = 'vrm'
   const messages = useStoredRef<DisplayMessage[]>('malfoid:karina:messages', [greetingMessage(settings.value.userName)])
   const affection = useStoredRef<number>('malfoid:karina:affection', INITIAL_AFFECTION)
   const emotion = ref<Emotion>(messages.value.at(-1)?.emotion ?? 'neutral')

@@ -12,7 +12,7 @@
 - 🦙 **Ollama**: `/api/chat` 스트리밍으로 로컬 모델과 대화합니다. 외부 API 키가 필요 없습니다.
 - 🎭 **AIRI 방식 감정 토큰**: LLM이 답변에 `<|EMOTE:smirk|>`, `<|AFFECTION:+2|>` 같은 특수 토큰을 섞어 쓰면, 스트리밍 파서가 이 토큰을 잘라내서 아바타 표정과 호감도를 바꿉니다.
 - 💘 **데이팅 시뮬레이션**: 호감도(0~100)에 따라 적대 → 경계 → 호기심 → 호감 → 연인 단계로 바뀌고, 단계마다 말포이의 태도 지시가 시스템 프롬프트에 들어갑니다.
-- 🧍 **3D 아바타**: three.js로 직접 만든 애니풍 카리나 말포이 3D 모델이 감정 토큰에 맞춰 표정·고개 자세를 바꾸고, 말할 때 입을 움직이고, 마우스를 따라 봅니다. AIRI처럼 **VRM** 모델로 바꿔 끼울 수도 있습니다.
+- 🧍 **3D 아바타 (VRM)**: AIRI와 같은 `@pixiv/three-vrm`으로 Malfoy Draconia VRM 모델을 띄웁니다. 감정 토큰에 맞춰 표정·고개 자세·볼 홍조가 바뀌고, 말할 때 립싱크를 하고, 마우스를 따라 보며, 머리카락과 치마가 흔들립니다.
 - 💾 대화, 호감도, 설정은 브라우저 localStorage에 저장됩니다.
 
 ## 실행
@@ -32,28 +32,44 @@ Ollama가 다른 곳에서 돌고 있다면 `OLLAMA_HOST=http://192.168.0.10:114
 
 ## 3D 모델
 
-### 기본 모델 (직접 제작)
+### 기본 모델: Malfoy Draconia (VRM)
 
-`src/three/karina.ts`가 코드로 모델을 만듭니다. 외부 파일이 필요 없습니다.
-디자인은 Sketchfab의 [Harry Potter - Malfoy Draconia](https://sketchfab.com/3d-models/harry-potter-malfoy-draconia-3d-model-dl-49a0f6d87e7b4079a6a6a5b15768e627)(HiGuys920, CC BY 4.0)를 참고했습니다.
-그래서 옆으로 넘긴 앞머리에 긴 백금발, 초록 눈, 후프 귀걸이를 하고 있고, 흰 셔츠·초록 넥타이·회색 니트 조끼·초록 깃의 검은 로브를 입고 팔짱을 끼고 있습니다.
+[Sketchfab의 "Harry Potter - Malfoy Draconia"](https://sketchfab.com/3d-models/harry-potter-malfoy-draconia-3d-model-dl-49a0f6d87e7b4079a6a6a5b15768e627)
+(작가 **HiGuys920**, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/))를 VRM 1.0으로 변환해
+`public/models/malfoy-draconia.vrm`(7.6MB)에 넣었습니다. 출처와 변경 사항은 `public/models/CREDITS.md`에 있고, 앱 화면에도 크레딧이 표시됩니다.
 
-- **셀 셰이딩**: `MeshToonMaterial`과 `OutlineEffect`로 애니풍 외곽선을 그립니다.
-- **얼굴**: 캔버스에 그린 눈·눈썹·입·홍조를 머리에 데칼로 투영합니다. 표정 7종, 눈 깜빡임, 립싱크, 시선 이동을 지원합니다.
-- **머리카락**: 굵기가 변하는 튜브 가닥 약 40개로 만들었습니다.
-- **내보내기**: ⚙️ 설정의 **"카리나 3D 모델을 .glb로 내보내기"**를 누르면 Blender 등에서 열 수 있는 `.glb` 파일이 저장됩니다.
+변환하면서 한 일:
 
-### 외부 모델 (VRM / GLB)
+- **휴머노이드 리깅**: 원본 리그(Hips·Spine·Chest·팔·다리·손가락 54개 본)를 VRM 휴머노이드 본에 연결했습니다.
+- **표정**: 원본에는 셰이프키가 없어서, 얼굴 본(눈꺼풀·눈썹·입술·턱)을 움직인 포즈를 셰이프키로 구웠습니다.
+  happy, angry, sad, relaxed, surprised, blink(양쪽·한쪽), aa·ih·ou·ee·oh 립싱크 13종이 VRM 표정에 연결됩니다.
+- **시선**: 눈 본이 마우스를 따라 움직입니다.
+- **스프링 본**: 머리카락 14가닥과 치마 8가닥이 흔들립니다. 머리·목·가슴·팔·엉덩이·허벅지에 충돌 판정이 있습니다.
+- **재질**: MToon(애니풍 셀 셰이딩)으로 바꿨습니다. 텍스처는 4096px에서 2048px 이하로 줄였습니다.
 
-⚙️ 설정에서 모델 주소를 입력하거나(예: `public/models/karina.vrm` → `/models/karina.vrm`), 내 컴퓨터의 파일을 바로 열 수 있습니다.
-`.vrm` 파일은 표준 표정(happy, angry, sad, relaxed, surprised, blink, aa)이 감정 토큰과 연결됩니다. 일반 `.glb` 파일은 표시만 됩니다.
+앱에서는 감정 토큰에 따라 VRM 표정과 고개 자세가 바뀝니다. 당황·웃음일 때는 볼 홍조가 생기고, 답장이 나오는 동안 립싱크를 하고, 팔을 내린 자세로 숨을 쉽니다.
 
-Sketchfab 원본 모델(.pmx/.fbx/.blend)을 쓰려면 이렇게 변환하세요.
+#### 다시 변환하기
 
-1. Sketchfab에 로그인한 뒤 모델을 내려받습니다. 라이선스는 CC BY 4.0이므로 **작가 HiGuys920 표기가 필요합니다.**
-2. Blender에 [VRM Add-on for Blender](https://vrm-addon-for-blender.info/)를 설치합니다. `.pmx` 파일이라면 [MMD Tools](https://github.com/MMD-Blender/blender_mmd_tools)도 설치합니다.
-3. 모델을 불러온 뒤 VRM 휴머노이드 본을 지정하고, 셰이프키를 VRM 표정(happy, angry, sad, relaxed, surprised, blink, aa)에 연결합니다.
-4. `.vrm`으로 내보내서 `public/models/`에 넣고, 설정에서 `/models/파일이름.vrm`을 입력합니다.
+`scripts/convert-draconia/`에 변환 스크립트가 있습니다. 화면 없는 Blender(bpy 5.2.2)와 [VRM Add-on for Blender](https://github.com/saturday06/VRM-Addon-for-Blender) v4.10.2를 씁니다.
+
+1. 원본 zip을 내려받습니다. Sketchfab(로그인 필요)이나 작가의 [Patreon 무료 공개 글](https://www.patreon.com/higuys920/posts/harry-potter-3d-172401876)에서 받을 수 있습니다.
+2. 아래처럼 실행합니다. 처음 실행할 때 `scripts/convert-draconia/.cache/`에 Blender와 애드온을 받습니다.
+
+```bash
+scripts/convert-draconia/convert.sh "Harry Potter Series - Malfoy Draconia Female (3D Model).zip"
+```
+
+표정 포즈는 `expressions.py`, 스프링 본은 `springs.py`, 재질은 `convert.py`에서 고칠 수 있습니다.
+
+### 다른 모델 쓰기
+
+⚙️ 설정의 **아바타**에서 고를 수 있습니다.
+
+- **3D 원본 모델 (VRM)**: 기본값입니다. 다른 VRM 주소를 입력하거나 내 컴퓨터의 `.vrm`/`.glb` 파일을 열 수 있습니다.
+  VRM이면 표준 표정 이름으로 감정이 연결되고, 일반 `.glb`는 표시만 됩니다.
+- **3D 간이 모델**: `src/three/karina.ts`가 코드로 만드는 가벼운 셀 셰이딩 모델입니다. VRM을 불러오지 못할 때도 이 모델로 바뀝니다. `.glb`로 내보낼 수 있습니다.
+- **2D**: 가장 가벼운 SVG 아바타입니다.
 
 ## 구조
 
@@ -67,17 +83,22 @@ src/
 ├─ composables/
 │  └─ useChat.ts       # 대화 상태, 스트리밍, 표정/호감도 반영, 저장
 ├─ three/
-│  ├─ karina.ts        # 절차적 카리나 말포이 3D 모델 (머리, 머리카락, 교복, 팔짱)
+│  ├─ vrm.ts           # VRM 로더: 감정 → VRM 표정, 고개 자세, 시선, 립싱크, 볼 홍조
+│  ├─ pose.ts          # 감정별 고개 자세 (VRM·간이 모델 공용)
+│  ├─ karina.ts        # 간이 3D 모델 (코드로 생성)
 │  ├─ faceTexture.ts   # 애니풍 얼굴 캔버스 (표정 7종, 깜빡임, 립싱크)
 │  ├─ tube.ts          # 머리카락·팔용 가변 굵기 튜브
-│  ├─ toon.ts          # 셀 셰이딩 재질
-│  └─ vrm.ts           # VRM/GLB 로더, 감정 → VRM 표정 연결
+│  └─ toon.ts          # 셀 셰이딩 재질
 └─ components/
-   ├─ Avatar3D.vue      # three.js 장면, 카메라, 외곽선, .glb 내보내기
+   ├─ Avatar3D.vue      # three.js 장면, 카메라, 조명, 외곽선, .glb 내보내기
    ├─ MalfoyAvatar.vue  # 2D SVG 아바타 (설정에서 선택)
    ├─ AffectionMeter.vue
    ├─ MessageBubble.vue # *행동 묘사*는 기울임꼴로 표시
    └─ SettingsPanel.vue
+public/models/
+├─ malfoy-draconia.vrm # 기본 3D 모델 (HiGuys920, CC BY 4.0 → VRM 1.0 변환)
+└─ CREDITS.md
+scripts/convert-draconia/  # FBX → VRM 변환 (Blender + VRM Add-on, 화면 없이 실행)
 ```
 
 ## 확장 아이디어 (AIRI 쪽 기능 더 가져오기)
@@ -93,6 +114,6 @@ npm test          # 마커 파서, 호감도 단위 테스트
 npm run build     # 타입 체크 + 프로덕션 빌드
 ```
 
-> 3D 디자인 참고: "Harry Potter - Malfoy Draconia" by HiGuys920, CC BY 4.0 (https://sketchfab.com/3d-models/harry-potter-malfoy-draconia-3d-model-dl-49a0f6d87e7b4079a6a6a5b15768e627). 기본 3D 모델은 이 모델의 파일을 쓰지 않고 코드로 새로 만들었습니다.
+> 3D 모델: "Harry Potter - Malfoy Draconia (3D Model)" by HiGuys920, CC BY 4.0 (https://sketchfab.com/3d-models/harry-potter-malfoy-draconia-3d-model-dl-49a0f6d87e7b4079a6a6a5b15768e627). VRM 1.0으로 변환하면서 표정·스프링 본·재질을 바꿨습니다 (`public/models/CREDITS.md`).
 >
 > 해리 포터 세계관과 『악역영애 말포이』를 바탕으로 한 비공식·비상업 팬 프로젝트입니다. 캐릭터는 성인(23세)으로 설정했고, 로맨스는 PG-13 수준으로 제한되어 있습니다.

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue'
-import { useChat } from './composables/useChat'
+import { DEFAULT_MODEL_URL, useChat } from './composables/useChat'
 import { CHARACTER_NAME, CHARACTER_TAGLINE } from './lib/persona'
 import MalfoyAvatar from './components/MalfoyAvatar.vue'
 import AffectionMeter from './components/AffectionMeter.vue'
@@ -17,7 +17,13 @@ const showSettings = ref(false)
 const scroller = ref<HTMLElement>()
 const avatar3d = ref<{ exportGlb: () => Promise<void> }>()
 const localModelUrl = ref<string | null>(null)
-const modelUrl = computed(() => localModelUrl.value ?? (settings.value.modelUrl || null))
+/** null이면 코드로 만든 간이 3D 모델 */
+const modelUrl = computed(() => {
+  if (settings.value.avatarMode !== 'vrm')
+    return null
+  return localModelUrl.value ?? (settings.value.modelUrl || DEFAULT_MODEL_URL)
+})
+const usingDefaultModel = computed(() => modelUrl.value === DEFAULT_MODEL_URL)
 
 function onModelFile(file: File) {
   if (localModelUrl.value)
@@ -48,7 +54,7 @@ watch(() => messages.value.map(m => m.text.length).join(), async () => {
   <div class="layout">
     <aside class="stage">
       <Avatar3D
-        v-if="settings.avatarMode === '3d'"
+        v-if="settings.avatarMode !== '2d'"
         ref="avatar3d"
         :emotion="emotion"
         :speaking="isStreaming"
@@ -56,6 +62,10 @@ watch(() => messages.value.map(m => m.text.length).join(), async () => {
         @error="error = $event"
       />
       <MalfoyAvatar v-else :emotion="emotion" :speaking="isStreaming" />
+      <p v-if="usingDefaultModel" class="credit">
+        3D 모델: <a href="https://sketchfab.com/3d-models/harry-potter-malfoy-draconia-3d-model-dl-49a0f6d87e7b4079a6a6a5b15768e627" target="_blank" rel="noopener">"Malfoy Draconia" by HiGuys920</a>
+        · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> · VRM 변환
+      </p>
       <h1>{{ CHARACTER_NAME }}</h1>
       <p class="sub">{{ CHARACTER_TAGLINE }}</p>
       <AffectionMeter :value="affection" :stage="stage" :last-delta="lastDelta" />
@@ -63,7 +73,6 @@ watch(() => messages.value.map(m => m.text.length).join(), async () => {
       <SettingsPanel
         v-if="showSettings"
         v-model="settings"
-        :custom-model="!!modelUrl"
         class="settings"
         @reset="reset(); showSettings = false"
         @close="showSettings = false"
@@ -120,6 +129,13 @@ watch(() => messages.value.map(m => m.text.length).join(), async () => {
 }
 h1 { margin: 8px 0 0; font-size: 1.3rem; letter-spacing: 0.04em; }
 .sub { margin: 0 0 12px; color: var(--text-dim); font-size: 0.85rem; }
+.credit {
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  text-align: center;
+}
+.credit a { color: inherit; }
 .settings-btn { margin-top: 8px; }
 .settings {
   width: 100%;

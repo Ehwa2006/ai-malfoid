@@ -13,6 +13,8 @@ export interface AvatarController {
   object: Object3D
   /** 카메라가 바라볼 중심점과 화면에 담을 세로 높이(m) */
   frame: { target: Vector3, height: number }
+  /** 모델 재질에 맞춘 조명 세기 (없으면 기본값) */
+  lighting?: { hemisphere: number, key: number, rim: number }
   setEmotion: (emotion: Emotion) => void
   update: (dt: number, state: AvatarFrameState) => void
   dispose: () => void

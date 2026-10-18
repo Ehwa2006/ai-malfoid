@@ -29,7 +29,8 @@ const scene = new Scene()
 const camera = new PerspectiveCamera(26, 1, 0.05, 20)
 const pointer = { x: 0, y: 0 }
 
-const hemi = new HemisphereLight('#ffffff', '#4a5a50', 1.6)
+const DEFAULT_LIGHTING = { hemisphere: 1.6, key: 2.2, rim: 0.8 }
+const hemi = new HemisphereLight('#ffffff', '#4a5a50', DEFAULT_LIGHTING.hemisphere)
 const key = new DirectionalLight('#fff6ea', 2.2)
 key.position.set(0.8, 2.4, 2)
 const rim = new DirectionalLight('#cfe8ff', 0.8)
@@ -70,6 +71,10 @@ async function setAvatar(url: string | null | undefined) {
     avatar.dispose()
   }
   avatar = next
+  const lighting = avatar.lighting ?? DEFAULT_LIGHTING
+  hemi.intensity = lighting.hemisphere
+  key.intensity = lighting.key
+  rim.intensity = lighting.rim
   avatar.setEmotion(props.emotion)
   scene.add(avatar.object)
   frameCamera()

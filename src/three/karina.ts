@@ -27,8 +27,8 @@ import {
   type Material,
 } from 'three'
 import { DecalGeometry } from 'three/examples/jsm/geometries/DecalGeometry.js'
-import type { Emotion } from '../lib/markers'
 import { drawFace, FACE_SIZE, type FaceState } from './faceTexture'
+import { HEAD_POSE } from './pose'
 import { taperedTube } from './tube'
 import { SOFT_SHADE, toon } from './toon'
 import type { AvatarController, AvatarFrameState } from './types'
@@ -445,18 +445,6 @@ function buildHead(): { skull: Group, faceCanvas: HTMLCanvasElement, faceTexture
   return { skull, faceCanvas, faceTexture }
 }
 
-interface Pose { x: number, y: number, z: number }
-
-const HEAD_POSE: Record<Emotion, Pose> = {
-  neutral: { x: 0, y: 0, z: 0 },
-  smirk: { x: -0.09, y: -0.12, z: 0.07 },
-  annoyed: { x: -0.06, y: 0.32, z: -0.05 },
-  flustered: { x: 0.16, y: -0.22, z: 0.06 },
-  happy: { x: -0.03, y: 0, z: 0.1 },
-  sad: { x: 0.2, y: 0.05, z: -0.04 },
-  surprised: { x: -0.1, y: 0, z: 0 },
-}
-
 export function createKarina(): AvatarController {
   const root = new Group()
   root.name = 'KarinaMalfoy'
@@ -516,13 +504,13 @@ export function createKarina(): AvatarController {
         ? MathUtils.clamp(0.45 + 0.35 * Math.sin(time * 17) + 0.25 * Math.sin(time * 29), 0, 1)
         : 0
       face.lookX = MathUtils.clamp(state.lookX, -1, 1)
-      face.lookY = MathUtils.clamp(-state.lookY, -1, 1)
+      face.lookY = MathUtils.clamp(state.lookY, -1, 1)
       redraw()
 
       // 머리 자세: 감정 + 포인터 따라보기 + 숨쉬기 흔들림
       const pose = HEAD_POSE[face.emotion]
       const k = 1 - Math.exp(-dt * 5)
-      neckPivot.rotation.x += (pose.x - state.lookY * 0.12 + Math.sin(time * 0.9) * 0.015 - neckPivot.rotation.x) * k
+      neckPivot.rotation.x += (pose.x + state.lookY * 0.12 + Math.sin(time * 0.9) * 0.015 - neckPivot.rotation.x) * k
       neckPivot.rotation.y += (pose.y + state.lookX * 0.3 - neckPivot.rotation.y) * k
       neckPivot.rotation.z += (pose.z + Math.sin(time * 0.7) * 0.02 - neckPivot.rotation.z) * k
 

@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { listModels } from '../lib/ollama'
-import type { Settings } from '../composables/useChat'
+import { DEFAULT_MODEL_URL, type Settings } from '../composables/useChat'
 
 const settings = defineModel<Settings>({ required: true })
-defineProps<{ customModel?: boolean }>()
 const emit = defineEmits<{ 'reset': [], 'close': [], 'model-file': [file: File], 'export-glb': [] }>()
 
 const models = ref<string[]>([])
@@ -81,22 +80,23 @@ onMounted(refresh)
     <label>
       아바타
       <select v-model="settings.avatarMode">
-        <option value="3d">3D (카리나 말포이 모델)</option>
-        <option value="2d">2D (가벼운 SVG)</option>
+        <option value="vrm">3D 원본 모델 (Malfoy Draconia, VRM)</option>
+        <option value="procedural">3D 간이 모델 (코드로 생성, 가벼움)</option>
+        <option value="2d">2D (가장 가벼운 SVG)</option>
       </select>
     </label>
 
-    <template v-if="settings.avatarMode === '3d'">
+    <template v-if="settings.avatarMode === 'vrm'">
       <label>
-        외부 3D 모델 주소 (.vrm / .glb, 비우면 기본 모델)
-        <input v-model.trim="settings.modelUrl" placeholder="/models/karina.vrm">
+        다른 VRM 모델 주소 (.vrm / .glb, 비우면 기본 모델)
+        <input v-model.trim="settings.modelUrl" :placeholder="DEFAULT_MODEL_URL">
       </label>
       <label>
         또는 내 컴퓨터의 모델 파일 열기 (이번 접속에서만 유지)
         <input type="file" accept=".vrm,.glb,.gltf" @change="onModelFile">
       </label>
-      <button v-if="!customModel" class="ghost" @click="emit('export-glb')">카리나 3D 모델을 .glb로 내보내기</button>
     </template>
+    <button v-if="settings.avatarMode === 'procedural'" class="ghost" @click="emit('export-glb')">간이 3D 모델을 .glb로 내보내기</button>
 
     <button class="danger" @click="confirmReset">대화 & 호감도 초기화</button>
   </div>
