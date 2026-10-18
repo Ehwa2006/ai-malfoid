@@ -4,7 +4,7 @@
 //   2. 모델이 하나도 없으면 기본 모델을 받는다
 //   3. 의존성을 설치하고 개발 서버를 띄운 뒤 브라우저를 연다
 // 환경 변수: OLLAMA_HOST (기본 127.0.0.1:11434), MALFOID_MODEL (기본 exaone3.5:7.8b)
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { spawn, spawnSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -87,7 +87,9 @@ else {
   say(`모델 준비됨: ${MODEL}`)
 }
 
-if (!existsSync(join(ROOT, 'node_modules'))) {
+// 처음이거나, git pull로 package-lock.json이 바뀌었으면(새 패키지 추가 등) 다시 설치한다
+const installed = join(ROOT, 'node_modules', '.package-lock.json')
+if (!existsSync(installed) || statSync(join(ROOT, 'package-lock.json')).mtimeMs > statSync(installed).mtimeMs) {
   say('패키지 설치 중 (npm install)…')
   run('npm', ['install'])
 }
