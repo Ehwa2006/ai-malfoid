@@ -6,11 +6,11 @@
 //   4. 의존성을 설치하고 개발 서버를 띄운 뒤 브라우저를 연다
 // 환경 변수: OLLAMA_HOST (기본 127.0.0.1:11434), MALFOID_MODEL (기본 exaone3.5:7.8b),
 //           GPT_SOVITS_DIR (GPT-SoVITS 폴더), GPT_SOVITS_URL (기본 http://127.0.0.1:9880)
-import { copyFileSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, openSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { spawn, spawnSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
-import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
+import { findGptSovits, hasV2Pro, pythonOf } from './gpt-sovits/find.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const IS_WINDOWS = process.platform === 'win32'
@@ -119,30 +119,6 @@ async function gsvUp(url) {
   }
 }
 
-/** GPT-SoVITS 설치 폴더: GPT_SOVITS_DIR, 아니면 홈·다운로드·바탕화면·C:\ 에서 "GPT-SoVITS"로 시작하는 폴더 */
-function findGptSovits() {
-  if (process.env.GPT_SOVITS_DIR)
-    return existsSync(join(process.env.GPT_SOVITS_DIR, 'api_v2.py')) ? process.env.GPT_SOVITS_DIR : null
-  const roots = [homedir(), join(homedir(), 'Downloads'), join(homedir(), 'Desktop'), IS_WINDOWS ? 'C:\\' : '/opt']
-  for (const root of roots) {
-    let names = []
-    try {
-      names = readdirSync(root)
-    }
-    catch {
-      continue
-    }
-    for (const name of names.filter(n => /^gpt-?sovits/i.test(n)).sort().reverse()) {
-      // 압축을 풀면 한 단계 안쪽에 실제 폴더가 있는 경우가 많다
-      for (const dir of [join(root, name), join(root, name, name)]) {
-        if (existsSync(join(dir, 'api_v2.py')))
-          return dir
-      }
-    }
-  }
-  return null
-}
-
 async function startGptSovits() {
   const url = (process.env.GPT_SOVITS_URL || 'http://127.0.0.1:9880').replace(/\/+$/, '')
   if (await gsvUp(url)) {
@@ -151,11 +127,16 @@ async function startGptSovits() {
   }
   const dir = findGptSovits()
   if (!dir) {
-    say('AI 음성(GPT-SoVITS)이 없어서 Edge 음성으로 읽어요. 설치 방법은 README의 "AI 음성" 참고')
+    say(`AI 음성(GPT-SoVITS)이 없어서 Edge 음성으로 읽어요. 설치하려면: ${IS_WINDOWS ? 'npm.cmd' : 'npm'} run voice:install`)
     return
   }
-  if (!existsSync(join(dir, 'GPT_SoVITS', 'pretrained_models', 'v2Pro', 's2Gv2Pro.pth'))) {
-    say(`${dir}에 v2Pro 모델이 없어서 Edge 음성으로 읽어요. README의 "AI 음성"에 있는 v2pro 패키지를 받아 주세요`)
+  if (!hasV2Pro(dir)) {
+    say(`${dir}에 v2Pro 모델이 없어서 Edge 음성으로 읽어요. v2pro 패키지 설치: ${IS_WINDOWS ? 'npm.cmd' : 'npm'} run voice:install`)
+    return
+  }
+  const python = pythonOf(dir)
+  if (!python) {
+    say(`${dir}에 Python(runtime\\python.exe)이 없어요. 설치가 덜 끝났으면 다시 실행해 주세요: ${IS_WINDOWS ? 'npm.cmd' : 'npm'} run voice:install`)
     return
   }
   // 우리 설정 파일을 GPT-SoVITS 폴더에 복사하고, NVIDIA GPU가 없으면 CPU 설정으로 바꾼다
@@ -164,14 +145,18 @@ async function startGptSovits() {
   const hasNvidia = spawnSync('nvidia-smi', ['-L'], { stdio: 'ignore', shell: IS_WINDOWS }).status === 0
   if (!hasNvidia)
     writeFileSync(config, readFileSync(config, 'utf8').replace('device: cuda', 'device: cpu').replace('is_half: true', 'is_half: false'))
-  const python = [join(dir, 'runtime', 'python.exe'), join(dir, 'runtime', 'bin', 'python'), join(dir, '.venv', 'bin', 'python')]
-    .find(p => existsSync(p)) ?? 'python'
+  const log = join(dir, 'karina-api.log')
   say(`AI 음성(GPT-SoVITS)을 켜는 중… (${dir}, ${hasNvidia ? 'NVIDIA GPU' : 'CPU'}) 모델을 올리는 30초쯤은 Edge 음성으로 읽어요`)
   const port = new URL(url).port || '9880'
-  spawn(python, ['api_v2.py', '-a', '127.0.0.1', '-p', port, '-c', 'GPT_SoVITS/configs/tts_infer_karina.yaml'], {
+  // -X utf8: 콘솔 없이 켜면 Python 출력이 cp949가 되어, 대사에 "—" 같은 글자가 있으면 합성이 실패한다
+  // 서버 출력은 karina-api.log에 남긴다 (켜지지 않을 때 원인 확인용)
+  const out = openSync(log, 'w')
+  const server = spawn(python, ['-X', 'utf8', 'api_v2.py', '-a', '127.0.0.1', '-p', port, '-c', 'GPT_SoVITS/configs/tts_infer_karina.yaml'], {
     cwd: dir,
     detached: true,
-    stdio: 'ignore',
+    stdio: ['ignore', out, out],
     windowsHide: true,
-  }).unref()
+  })
+  server.on('error', e => say(`AI 음성 서버를 켜지 못해 Edge 음성으로 읽어요: ${e.message}`))
+  server.unref()
 }

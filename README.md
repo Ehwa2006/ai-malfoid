@@ -82,18 +82,44 @@ EXAONE 3.5는 LG AI연구원의 비상업 라이선스 모델이라 개인·비�
 
 **설치 (Windows, 한 번만)**
 
-1. [GPT-SoVITS 윈도우 통합 패키지](https://huggingface.co/lj1995/GPT-SoVITS-windows-package/tree/main)에서 `GPT-SoVITS-v2pro-20250604.7z`(약 8.2GB)를 받습니다.
-   RTX 50 시리즈 그래픽카드라면 `GPT-SoVITS-v2pro-20250604-nvidia50.7z`를 받으세요. Python과 모델이 모두 들어 있어 따로 설치할 것이 없습니다.
-2. [7-Zip](https://www.7-zip.org)으로 **홈 폴더**(`C:\Users\<이름>`), **다운로드**, **바탕화면**, `C:\` 중 한 곳에 풉니다.
-   폴더 경로에 한글이 있으면 GPT-SoVITS가 한국어 발음을 분석하지 못하니 영문 경로에 두세요.
-3. 평소처럼 `npm.cmd start`. GPT-SoVITS 폴더를 찾아 AI 음성 서버를 자동으로 켭니다(NVIDIA GPU가 있으면 GPU, 없으면 CPU).
-   서버가 모델을 올리는 처음 30초쯤은 Edge 음성으로 읽고, 준비되면 다음 답변부터 AI 음성으로 읽습니다.
+```powershell
+npm.cmd run voice:install
+```
 
-다른 곳에 풀었다면 폴더를 알려 주세요: PowerShell에서 `$env:GPT_SOVITS_DIR="D:\GPT-SoVITS-v2pro-20250604"; npm.cmd start`.
-직접 켜려면 GPT-SoVITS 폴더에서 `runtime\python.exe api_v2.py -a 127.0.0.1 -p 9880 -c GPT_SoVITS/configs/tts_infer_karina.yaml`
+이 명령이 하는 일:
+
+1. 그래픽카드에 맞는 [GPT-SoVITS 윈도우 통합 패키지](https://huggingface.co/lj1995/GPT-SoVITS-windows-package/tree/main)를 다운로드 폴더에 받습니다.
+   - 보통은 `GPT-SoVITS-v2pro-20250604.7z`(약 8.2GB)입니다.
+   - RTX 50 시리즈면 `GPT-SoVITS-v2pro-20250604-nvidia50.7z`(약 8.8GB)를 받습니다.
+   - Python과 모델이 모두 들어 있어 따로 설치할 것이 없습니다.
+   - 인터넷이 끊기거나 창을 닫아도 다시 실행하면 받은 곳부터 이어 받습니다.
+2. 받은 파일이 손상되지 않았는지 SHA-256으로 확인합니다.
+3. 홈 폴더(`C:\Users\<이름>`)에 압축을 풀고(약 14GB), 다 풀리면 압축 파일은 지웁니다.
+   - 7-Zip이 있으면 7-Zip으로 풉니다. 없으면 윈도우 11의 내장 `tar`를 쓰고, 그것도 안 되면 winget으로 7-Zip을 설치합니다.
+   - 디스크 여유 공간(약 24GB)과 경로 길이를 미리 확인합니다.
+   - 홈 폴더 경로에 한글이 있으면 GPT-SoVITS가 한국어 발음을 분석하지 못하므로 `C:\`에 풉니다.
+   - 압축을 풀다 멈췄으면 다시 실행할 때 처음부터 다시 풉니다.
+
+C 드라이브 공간이 모자라면 다른 드라이브에 설치할 수 있습니다. npm에 옵션을 넘기려면 앞에 `--`를 붙여야 합니다.
+
+```powershell
+npm.cmd run voice:install -- --dir D:\AI
+```
+
+이렇게 다른 곳에 설치하면 그 위치를 기억해 두어 `npm.cmd start`가 찾아 씁니다. 압축 파일도 그 드라이브에 받습니다.
+
+설치가 끝나면 평소처럼 `npm.cmd start`를 실행하세요. GPT-SoVITS 폴더를 찾아 AI 음성 서버를 자동으로 켭니다(NVIDIA GPU가 있으면 GPU, 없으면 CPU).
+서버가 모델을 올리는 처음 30초쯤은 Edge 음성으로 읽고, 준비되면 다음 답변부터 AI 음성으로 읽습니다.
+
+직접 받고 싶다면 위 링크에서 같은 파일을 받아 [7-Zip](https://www.7-zip.org)으로 홈 폴더, 다운로드, `C:\` 중 한 곳에 푸세요.
+폴더 경로에 한글이 있으면(OneDrive의 "바탕 화면" 등) 한국어 발음을 분석하지 못하니 영문 경로에 두세요.
+
+직접 다른 곳에 풀었다면 폴더를 알려 주세요: `setx GPT_SOVITS_DIR D:\GPT-SoVITS-v2pro-20250604`를 실행하고 새 PowerShell 창에서 `npm.cmd start`.
+직접 켜려면 GPT-SoVITS 폴더에서 `runtime\python.exe -X utf8 api_v2.py -a 127.0.0.1 -p 9880 -c GPT_SoVITS/configs/tts_infer_karina.yaml`
 (`tts_infer_karina.yaml`은 `npm start`가 [scripts/gpt-sovits/karina.yaml](scripts/gpt-sovits/karina.yaml)을 복사해 둔 것입니다).
 다른 컴퓨터에서 돌린다면 `GPT_SOVITS_URL=http://192.168.0.10:9880`으로 주소를 바꿉니다.
 ⚙️ 설정의 목소리 칸에서 서버와 보이스 팩 상태를 확인할 수 있습니다.
+서버가 켜지지 않으면 GPT-SoVITS 폴더의 `karina-api.log`에서 원인을 볼 수 있습니다.
 
 속도는 NVIDIA GPU에서 문장당 1초 안팎, CPU만으로는 문장당 10초쯤 걸립니다. 앞 문장을 읽는 동안 다음 문장을 미리 만들어 둡니다.
 
@@ -176,7 +202,7 @@ public/models/
 scripts/convert-draconia/  # FBX → VRM 변환 (Blender + VRM Add-on, 화면 없이 실행)
 voices/karina/             # 카리나 보이스 팩: 감정별 참고 음성 7개 + voice.json (AI 생성 음성, CREDITS.md)
 scripts/start.mjs          # npm start: Ollama 확인·모델 받기·AI 음성 서버 켜기·앱 실행
-scripts/gpt-sovits/        # GPT-SoVITS 서버 설정
+scripts/gpt-sovits/        # GPT-SoVITS 설치(npm run voice:install)·설치 폴더 찾기·서버 설정
 server/gptSovits.ts        # 개발 서버에 붙는 AI 음성 연결 (/tts/gsv → GPT-SoVITS api_v2, 감정별 참고 음성 선택)
 server/edgeTts.ts          # 개발 서버에 붙는 Edge 신경망 음성 엔드포인트 (/tts/v1/audio/speech)
 ```

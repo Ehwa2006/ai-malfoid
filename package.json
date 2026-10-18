@@ -6,6 +6,7 @@
   "description": "Ollama + AIRI 스타일로 만든 드레이코 말포이 데이팅 채팅",
   "scripts": {
     "start": "node scripts/start.mjs",
+    "voice:install": "node scripts/gpt-sovits/install.mjs",
     "dev": "vite",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview",
