@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
 import { useChat } from './composables/useChat'
-import { CHARACTER_NAME } from './lib/persona'
+import { CHARACTER_NAME, CHARACTER_TAGLINE } from './lib/persona'
 import MalfoyAvatar from './components/MalfoyAvatar.vue'
 import AffectionMeter from './components/AffectionMeter.vue'
 import MessageBubble from './components/MessageBubble.vue'
@@ -37,7 +37,7 @@ watch(() => messages.value.map(m => m.text.length).join(), async () => {
     <aside class="stage">
       <MalfoyAvatar :emotion="emotion" :speaking="isStreaming" />
       <h1>{{ CHARACTER_NAME }}</h1>
-      <p class="sub">슬리데린 · 마법약 연구가 · 25세</p>
+      <p class="sub">{{ CHARACTER_TAGLINE }}</p>
       <AffectionMeter :value="affection" :stage="stage" :last-delta="lastDelta" />
       <button class="ghost settings-btn" @click="showSettings = !showSettings">⚙️ 설정</button>
       <SettingsPanel

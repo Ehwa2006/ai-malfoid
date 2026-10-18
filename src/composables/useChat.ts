@@ -38,10 +38,12 @@ function uid() {
 }
 
 function greetingMessage(): DisplayMessage {
-  const msg: DisplayMessage = { id: uid(), role: 'assistant', text: '', emotion: 'smirk' }
+  const msg: DisplayMessage = { id: uid(), role: 'assistant', text: '' }
   const parser = new MarkerParser((e) => {
     if (e.type === 'text')
       msg.text += e.text
+    else if (e.type === 'emote')
+      msg.emotion = e.emotion
   })
   parser.push(GREETING)
   parser.flush()
@@ -50,8 +52,8 @@ function greetingMessage(): DisplayMessage {
 
 export function useChat() {
   const settings = useStoredRef<Settings>('malfoid:settings', { ...DEFAULT_SETTINGS })
-  const messages = useStoredRef<DisplayMessage[]>('malfoid:messages', [greetingMessage()])
-  const affection = useStoredRef<number>('malfoid:affection', INITIAL_AFFECTION)
+  const messages = useStoredRef<DisplayMessage[]>('malfoid:ts:messages', [greetingMessage()])
+  const affection = useStoredRef<number>('malfoid:ts:affection', INITIAL_AFFECTION)
   const emotion = ref<Emotion>(messages.value.at(-1)?.emotion ?? 'neutral')
   const isStreaming = ref(false)
   const error = ref<string | null>(null)
@@ -142,7 +144,7 @@ export function useChat() {
     stop()
     messages.value = [greetingMessage()]
     affection.value = INITIAL_AFFECTION
-    emotion.value = 'smirk'
+    emotion.value = messages.value[0].emotion ?? 'neutral'
     lastDelta.value = null
     error.value = null
   }

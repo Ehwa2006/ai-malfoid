@@ -1,6 +1,10 @@
 # AI Malfoid 🐍💚
 
-**Ollama**(로컬 LLM) + **AIRI** 스타일(감정 토큰으로 움직이는 캐릭터)을 합친 TypeScript 드레이코 말포이 데이팅 채팅.
+**Ollama**(로컬 LLM) + **AIRI** 스타일(감정 토큰으로 움직이는 캐릭터)을 합친 TypeScript **TS 말포이** 데이팅 채팅.
+
+> 전쟁 후 마법약 연구가가 된 25세 드레이코 말포이. 직접 만들던 변신 마법약이 폭발하는 사고로 여성의 몸이 되었지만,
+> 여전히 도도하고 자존심 센 "드레이코 말포이"입니다. 놀리거나 동정하면 호감도가 떨어지고, 있는 그대로 대해주면 마음을 엽니다.
+> 설정은 `src/lib/persona.ts`에서 바꿀 수 있습니다.
 
 - 🦙 **Ollama**: `/api/chat` 스트리밍으로 로컬 모델과 대화합니다. 외부 API 키가 필요 없습니다.
 - 🎭 **AIRI 방식 감정 토큰**: LLM이 답변에 `<|EMOTE:smirk|>`, `<|AFFECTION:+2|>` 같은 특수 토큰을 섞어 쓰면, 스트리밍 파서가 이 토큰을 잘라내서 아바타 표정과 호감도를 바꿉니다.
@@ -34,7 +38,7 @@ src/
 ├─ composables/
 │  └─ useChat.ts       # 대화 상태, 스트리밍, 표정/호감도 반영, 저장
 └─ components/
-   ├─ MalfoyAvatar.vue  # 감정별 SVG 아바타 (깜빡임, 말할 때 입 움직임)
+   ├─ MalfoyAvatar.vue  # 감정별 TS 말포이 SVG 아바타 (깜빡임, 말할 때 입 움직임)
    ├─ AffectionMeter.vue
    ├─ MessageBubble.vue # *행동 묘사*는 기울임꼴로 표시
    └─ SettingsPanel.vue
