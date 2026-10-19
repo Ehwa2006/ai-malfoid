@@ -6,7 +6,9 @@ describe('affection', () => {
     expect(stageOf(0).name).toBe('적대')
     expect(stageOf(20).name).toBe('경계')
     expect(stageOf(79).name).toBe('호감')
-    expect(stageOf(100).name).toBe('연인')
+    expect(stageOf(89).name).toBe('연인')
+    expect(stageOf(90).name).toBe('집착')
+    expect(stageOf(100).name).toBe('집착')
   })
   it('범위 제한', () => {
     expect(clampAffection(130)).toBe(100)

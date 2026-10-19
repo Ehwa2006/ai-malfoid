@@ -3,7 +3,7 @@ import { listModels, pickModel, streamChat, type ChatMessage } from '../lib/olla
 import { MarkerParser, type Emotion } from '../lib/markers'
 import { finishReply, formatReply, REPLY_SCHEMA, ReplyStreamParser } from '../lib/reply'
 import { clampAffection, clampDelta, stageOf } from '../lib/affection'
-import { buildGreeting, buildSystemPrompt } from '../lib/persona'
+import { boundaryNote, buildGreeting, buildSystemPrompt } from '../lib/persona'
 import { useStoredRef } from './useStoredRef'
 
 export interface DisplayMessage {
@@ -154,6 +154,10 @@ export function useChat() {
       { role: 'system', content: buildSystemPrompt(settings.value.userName, affection.value) },
       ...toLlmHistory(),
     ]
+    const recentUserTexts = messages.value.filter(m => m.role === 'user').slice(-3).map(m => m.text)
+    const note = boundaryNote(recentUserTexts, affection.value)
+    if (note)
+      llmMessages.push({ role: 'system', content: note })
 
     messages.value.push({ id: uid(), role: 'assistant', text: '' })
     // 반응형 프록시를 통해 수정해야 화면이 갱신된다.
