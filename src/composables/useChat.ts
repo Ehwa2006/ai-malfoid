@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import { listModels, pickModel, streamChat, type ChatMessage } from '../lib/ollama'
 import { MarkerParser, type Emotion } from '../lib/markers'
-import { cleanReply, formatReply, REPLY_SCHEMA, ReplyStreamParser } from '../lib/reply'
+import { finishReply, formatReply, REPLY_SCHEMA, ReplyStreamParser } from '../lib/reply'
 import { clampAffection, clampDelta, stageOf } from '../lib/affection'
 import { buildGreeting, buildSystemPrompt } from '../lib/persona'
 import { useStoredRef } from './useStoredRef'
@@ -102,6 +102,11 @@ export function useChat() {
   if (!['vrm', 'procedural', '2d'].includes(settings.value.avatarMode))
     settings.value.avatarMode = 'vrm'
   const messages = useStoredRef<DisplayMessage[]>('malfoid:karina:messages', [greetingMessage(settings.value.userName)])
+  // 이전 버전에서 저장된 답변의 깨진 표시("별표:", 짝 없는 별표 등)를 바로잡는다 (화면·다시 듣기·히스토리가 같은 글을 쓰도록)
+  for (const m of messages.value) {
+    if (m.role === 'assistant' && m.text)
+      m.text = finishReply(m.text)
+  }
   const affection = useStoredRef<number>('malfoid:karina:affection', INITIAL_AFFECTION)
   const emotion = ref<Emotion>(messages.value.at(-1)?.emotion ?? 'neutral')
   const isStreaming = ref(false)
@@ -184,7 +189,7 @@ export function useChat() {
         onToken: t => parser.push(t),
       })
       parser.flush()
-      reply.text = cleanReply(reply.text)
+      reply.text = finishReply(reply.text)
 
       const applied = clampDelta(delta)
       reply.affectionDelta = applied
@@ -193,6 +198,7 @@ export function useChat() {
     }
     catch (e) {
       parser.flush()
+      reply.text = finishReply(reply.text) // 중간에 멈춰도 짝 없는 별표가 남지 않게
       aborted = (e as Error).name === 'AbortError'
       if (!aborted)
         error.value = (e as Error).message

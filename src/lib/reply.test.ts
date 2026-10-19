@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { MarkerEvent } from './markers'
-import { cleanReply, formatReply, ReplyStreamParser } from './reply'
+import { splitSpeech } from '../tts/chunker'
+import { cleanReply, finishReply, formatReply, ReplyStreamParser, toSegments } from './reply'
 
 function run(chunks: string[]) {
   const events: MarkerEvent[] = []
@@ -52,6 +53,72 @@ describe('ReplyStreamParser', () => {
     expect(events).toContainEqual({ type: 'affection', delta: 1 })
   })
 
+  describe('행동과 말을 나눈 목록 (지금 형식)', () => {
+    const seg = '{"emotion":"smirk","affection":1,"reply":[{"kind":"action","text":"부채를 펼쳐 입가를 가린다"},{"kind":"say","text":"어머, \\"포터\\". 서두르지 마."},{"kind":"action","text":"문 쪽으로 걸어간다"}]}'
+
+    it('행동은 *…*로 감싸고 조각 사이는 띄운다', () => {
+      const { events, text } = run([seg])
+      expect(events[0]).toEqual({ type: 'emote', emotion: 'smirk' })
+      expect(events).toContainEqual({ type: 'affection', delta: 1 })
+      expect(text).toBe('*부채를 펼쳐 입가를 가린다* 어머, "포터". 서두르지 마. *문 쪽으로 걸어간다*')
+    })
+
+    it('한 글자씩 쪼개져 와도 같은 결과', () => {
+      expect(run(seg.split('')).text).toBe(run([seg]).text)
+    })
+
+    it('스트리밍 중에도 밑줄은 띄어쓰기로 내보낸다 (음성이 문장을 제대로 나누도록)', () => {
+      const { text } = run(['{"emotion":"smirk","affection":0,"reply":[{"kind":"say","text":"좋아._가자."}]}'])
+      expect(text).toBe('좋아. 가자.')
+    })
+
+    it('대사 칸에 섞인 별표는 지운다 (짝이 어긋나 행동과 대사가 뒤바뀌지 않게)', () => {
+      const { text } = run(['{"emotion":"smirk","affection":0,"reply":[{"kind":"say","text":"알았어.*"},{"kind":"action","text":"웃는다"},{"kind":"say","text":"가자."},{"kind":"action","text":"걸어간다"}]}'])
+      expect(text).toBe('알았어. *웃는다* 가자. *걸어간다*')
+      expect(splitSpeech(text)).toEqual(['알았어.', '가자.'])
+    })
+
+    it('행동 안의 줄바꿈은 띄어쓰기로 바꿔서, 음성이 행동을 읽지 않는다', () => {
+      const { text } = run(['{"emotion":"sad","affection":0,"reply":[{"kind":"action","text":"고개를 돌린다.\\n한숨을 쉰다"},{"kind":"say","text":"흥, 몰라."}]}'])
+      expect(splitSpeech(text)).toEqual(['흥, 몰라.'])
+    })
+
+    it('이름이나 이모티콘의 밑줄은 그대로 둔다', () => {
+      const { text } = run(['{"emotion":"smirk","affection":0,"reply":[{"kind":"say","text":"흥, dark_knight. 그 정도야? ^_^"}]}'])
+      expect(text).toBe('흥, dark_knight. 그 정도야? ^_^')
+    })
+
+    it('행동 안의 별표와 앞 공백, 빈 조각은 정리한다', () => {
+      const { text } = run(['{"emotion":"happy","affection":0,"reply":[{"kind":"action","text":" *웃는다*"},{"kind":"say","text":""},{"kind":"say","text":"좋아."}]}'])
+      expect(text).toBe('*웃는다* 좋아.')
+    })
+
+    it('formatReply는 화면 텍스트를 목록으로 바꾸고, 파서로 되읽을 수 있다', () => {
+      const shown = '*고개를 돌린다* 흥, 몰라. *귀 끝이 붉어진다*'
+      const json = formatReply({ emotion: 'flustered', affection: 2, reply: shown })
+      expect(JSON.parse(json).reply).toEqual([
+        { kind: 'action', text: '고개를 돌린다' },
+        { kind: 'say', text: '흥, 몰라.' },
+        { kind: 'action', text: '귀 끝이 붉어진다' },
+      ])
+      expect(run([json]).text).toBe(shown)
+    })
+  })
+
+  it('formatReply는 이전 버전에 저장된 깨진 표시를 바로잡아 보낸다', () => {
+    const stored = '*차분하게 미소를 지으며 손을 흔든다* 좋아, 가자. 내가 먼저 준비할 게 있으니까.별표:고급스러운 드레스를 입고 문을 향해 걸어가는 모습*'
+    expect(JSON.parse(formatReply({ emotion: 'smirk', affection: 0, reply: stored })).reply).toEqual([
+      { kind: 'action', text: '차분하게 미소를 지으며 손을 흔든다' },
+      { kind: 'say', text: '좋아, 가자. 내가 먼저 준비할 게 있으니까.' },
+      { kind: 'action', text: '고급스러운 드레스를 입고 문을 향해 걸어가는 모습' },
+    ])
+  })
+
+  it('toSegments는 짝 없는 별표를 말로 둔다', () => {
+    expect(toSegments('흥. *')).toEqual([{ kind: 'say', text: '흥.' }])
+    expect(toSegments('')).toEqual([])
+  })
+
   it('formatReply는 파서로 되읽을 수 있다', () => {
     const { text, events } = run([formatReply({ emotion: 'sad', affection: -2, reply: '…"그날" 얘기는 하지 마.' })])
     expect(text).toBe('…"그날" 얘기는 하지 마.')
@@ -76,5 +143,68 @@ describe('cleanReply', () => {
 
   it('닫히지 않은 행동 묘사(스트리밍 중)는 그대로 둔다', () => {
     expect(cleanReply('*눈을 가늘게 뜨며 create')).toBe('*눈을 가늘게 뜨며 create')
+  })
+
+  it('행동 묘사와 붙어 있는 문장 사이를 띄운다', () => {
+    expect(cleanReply('있으니까.*걸어간다*흥.')).toBe('있으니까. *걸어간다* 흥.')
+    expect(cleanReply('*웃는다*, 좋아.')).toBe('*웃는다*, 좋아.')
+    expect(cleanReply('*웃는다*좋아*끄덕인다*')).toBe('*웃는다* 좋아 *끄덕인다*')
+  })
+
+  it('문장 사이에 끼운 밑줄을 띄어쓰기로 바꾼다 (exaone에서 실제로 나온 출력)', () => {
+    expect(cleanReply('꽤 잘하더라구._하긴 네가 그리 약하지 않다는 건 알고 있었지._')).toBe('꽤 잘하더라구. 하긴 네가 그리 약하지 않다는 건 알고 있었지.')
+    expect(cleanReply('끓여준다고? _하긴 좋아.')).toBe('끓여준다고? 하긴 좋아.')
+    expect(cleanReply('dark_knight, 라고 했던가? ^_^')).toBe('dark_knight, 라고 했던가? ^_^')
+  })
+
+  it('대사 끝에 잘못 붙은 별표는 버리고 다음 행동은 그대로 살린다', () => {
+    expect(finishReply('*자세를 바로잡고* 그럼 가자, 포터* *가벼운 미소를 지으며 정원으로 향한다*')).toBe('*자세를 바로잡고* 그럼 가자, 포터 *가벼운 미소를 지으며 정원으로 향한다*')
+  })
+
+  it('지운 행동 묘사 자리는 띄워서 앞뒤 낱말이 붙지 않는다', () => {
+    expect(cleanReply('그럼 가자*createState*좋아.')).toBe('그럼 가자 좋아.')
+  })
+
+  it('cleanReply·finishReply는 두 번 해도 같다', () => {
+    for (const x of ['*웃는다*좋아*끄덕인다*', '있으니까.별표:걸어간다*', '*a* b. c*', '꽤._하긴', '*웃는다* 고개를 돌린다*', '포터* *걸어간다*', '흥. * *']) {
+      expect(cleanReply(cleanReply(x))).toBe(cleanReply(x))
+      expect(finishReply(finishReply(x))).toBe(finishReply(x))
+    }
+  })
+
+  it('"별표:"처럼 글자로 쓴 표시와 다른 별 기호를 바로잡는다', () => {
+    expect(cleanReply('*웃는다* 가자.별표:문으로 걸어간다별표:')).toBe('*웃는다* 가자. *문으로 걸어간다*')
+    expect(cleanReply('＊고개를 돌린다＊ 흥.')).toBe('*고개를 돌린다* 흥.')
+    expect(cleanReply('**턱을 치켜든다** 어머.')).toBe('*턱을 치켜든다* 어머.')
+  })
+})
+
+describe('finishReply', () => {
+  it('실제로 나온 답변: "별표:"로 열고 *로 닫은 행동 묘사', () => {
+    const raw = '*차분하게 미소를 지으며 손을 흔든다* 좋아, 좋아. 가자, 포터. 하지만 서두르지 마. 내가 먼저 준비할 게 있으니까.별표:고급스러운 드레스를 입고 문을 향해 걸어가는 모습*'
+    expect(finishReply(raw)).toBe('*차분하게 미소를 지으며 손을 흔든다* 좋아, 좋아. 가자, 포터. 하지만 서두르지 마. 내가 먼저 준비할 게 있으니까. *고급스러운 드레스를 입고 문을 향해 걸어가는 모습*')
+  })
+
+  it('실제로 나온 답변: 대사 끝에 잘못 붙은 별표', () => {
+    const raw = '*자세를 바로잡고* 그럼 가자, 포터. 기회가 될 수도 있겠네.* *가벼운 미소를 지으며 정원으로 향한다*'
+    expect(finishReply(raw)).toBe('*자세를 바로잡고* 그럼 가자, 포터. 기회가 될 수도 있겠네. *가벼운 미소를 지으며 정원으로 향한다*')
+  })
+
+  it('닫는 별표만 있으면 그 문장 앞에 여는 별표를 넣는다', () => {
+    expect(finishReply('좋아, 가자. 문을 향해 걸어간다*')).toBe('좋아, 가자. *문을 향해 걸어간다*')
+    expect(finishReply('*웃는다* 흥. 고개를 돌린다*')).toBe('*웃는다* 흥. *고개를 돌린다*')
+  })
+
+  it('앞에 문장부호가 없어도 닫는 별표 앞의 행동을 감싼다', () => {
+    expect(finishReply('*웃는다* 고개를 돌린다*')).toBe('*웃는다* *고개를 돌린다*')
+  })
+
+  it('띄어 쓴 끝 별표는 여는 별표만 남은 것이라 지운다', () => {
+    expect(finishReply('*팔짱을 낀다* 흥, 몰라 *')).toBe('*팔짱을 낀다* 흥, 몰라')
+  })
+
+  it('그 밖의 짝 없는 별표는 지우고, 짝이 맞으면 그대로 둔다', () => {
+    expect(finishReply('*고개를 돌린다 흥, 몰라.')).toBe('고개를 돌린다 흥, 몰라.')
+    expect(finishReply('*웃는다* 좋아.')).toBe('*웃는다* 좋아.')
   })
 })
