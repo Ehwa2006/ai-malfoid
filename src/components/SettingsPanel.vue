@@ -130,7 +130,8 @@ onMounted(refresh)
           </p>
           <p v-if="gsvStatus?.pack?.credit" class="credit">{{ gsvStatus.pack.credit }}</p>
           <p v-if="!gsvStatus?.server" class="hint">
-            꺼져 있으면 Edge 음성으로 대신 읽어요. 켜는 방법은 README의 "AI 음성 (GPT-SoVITS)"을 봐 주세요.
+            꺼져 있으면 Edge 음성으로 대신 읽어요. npm start로 켜면 처음에는 1~3분 걸리고, 켜지면 자동으로 바뀌어요.
+            설치는 npm.cmd run voice:install, 켜지지 않는 원인은 GPT-SoVITS 폴더의 karina-api.log에서 볼 수 있어요.
           </p>
         </div>
 

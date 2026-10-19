@@ -157,7 +157,7 @@ async function startGptSovits() {
     say(`AI 음성 서버를 준비하지 못해 Edge 음성으로 읽어요: ${e.message}`)
     return
   }
-  say(`AI 음성(GPT-SoVITS)을 켜는 중… (${dir}, ${hasNvidia ? 'NVIDIA GPU' : 'CPU'}) 모델을 올리는 30초쯤은 Edge 음성으로 읽어요`)
+  say(`AI 음성(GPT-SoVITS)을 켜는 중… (${dir}, ${hasNvidia ? 'NVIDIA GPU' : 'CPU'}) 켜질 때까지(처음에는 1~3분, 다음부터는 30초쯤) Edge 음성으로 읽다가 자동으로 바뀌어요`)
   const port = new URL(url).port || '9880'
   // -X utf8: 콘솔 없이 켜면 Python 출력이 cp949가 되어, 대사에 "—" 같은 글자가 있으면 합성이 실패한다
   const server = spawn(python, ['-X', 'utf8', 'api_v2.py', '-a', '127.0.0.1', '-p', port, '-c', 'GPT_SoVITS/configs/tts_infer_karina.yaml'], {

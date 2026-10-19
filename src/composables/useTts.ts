@@ -101,6 +101,8 @@ export function useTts(settings: Ref<Settings>, emotion: Ref<Emotion>) {
           try {
             playingEngine = engineId
             await prepared.play()
+            if (engineId === 'gsv')
+              clearGsvNotice() // AI 음성이 다시 잘 나오면 실패 안내를 지운다
             return
           }
           catch (e) {
@@ -116,7 +118,14 @@ export function useTts(settings: Ref<Settings>, emotion: Ref<Emotion>) {
             }
             if (active.value === engineId) {
               active.value = next
-              error.value = `${ENGINE_LABEL[engineId]}에 연결하지 못해 ${ENGINE_LABEL[next]}으로 읽을게요. (${err.message})`
+              const message = `${ENGINE_LABEL[engineId]}에 연결하지 못해 ${ENGINE_LABEL[next]}으로 읽을게요. (${err.message})`
+              if (engineId === 'gsv') {
+                noticeGsvDown(message)
+                void refreshGsv() // 서버가 꺼졌으면 다시 켜질 때까지 지켜본다
+              }
+              else {
+                error.value = message
+              }
             }
             live.delete(prepared)
             engineId = next
@@ -146,7 +155,28 @@ export function useTts(settings: Ref<Settings>, emotion: Ref<Emotion>) {
     speaking.value = false
   }
 
-  /** AI 음성 서버 상태를 확인한다. 꺼져 있으면 시작부터 다음 엔진으로 읽는다 */
+  /** 지금 떠 있는 "AI 음성 대신 다른 음성으로 읽는다"는 안내 (AI 음성이 돌아오면 지운다) */
+  let gsvNotice: string | null = null
+  /** 서버가 꺼져 있어서 다른 음성으로 읽는 중이다 (켜지면 AI 음성으로 돌아간다) */
+  let waitingForGsv = false
+  let gsvRetry: ReturnType<typeof setTimeout> | null = null
+
+  function noticeGsvDown(message: string) {
+    gsvNotice = message
+    error.value = message
+  }
+
+  function clearGsvNotice() {
+    if (gsvNotice !== null && error.value === gsvNotice)
+      error.value = null
+    gsvNotice = null
+  }
+
+  /**
+   * AI 음성 서버 상태를 확인한다.
+   * 보이스 팩은 있는데 서버가 아직 꺼져 있으면(처음 켤 때 1~3분 걸린다) 10초마다 다시 확인하고,
+   * 켜지면 바로 AI 음성으로 돌아간다 (읽고 있던 답변도 남은 문장부터).
+   */
   async function refreshGsv(): Promise<GsvStatus | null> {
     try {
       const res = await fetch(`${GSV_TTS_URL}/status`, { signal: AbortSignal.timeout(4000) })
@@ -155,7 +185,25 @@ export function useTts(settings: Ref<Settings>, emotion: Ref<Emotion>) {
     catch {
       gsvStatus.value = null
     }
-    return gsvStatus.value
+    const s = gsvStatus.value
+    if (gsvRetry)
+      clearTimeout(gsvRetry)
+    gsvRetry = null
+    if (tts().enabled && tts().provider === 'gsv') {
+      if (s?.server && s.pack) {
+        // 서버가 켜져 있는데 합성만 실패한 경우에는 돌아가지 않는다 (같은 실패를 문장마다 되풀이하지 않게)
+        if (waitingForGsv) {
+          waitingForGsv = false
+          active.value = 'gsv'
+          clearGsvNotice()
+        }
+      }
+      else if (s?.pack) {
+        waitingForGsv = true
+        gsvRetry = setTimeout(() => void refreshGsv(), 10_000)
+      }
+    }
+    return s
   }
 
   /** 답변(또는 다시 듣기)을 시작할 때 쓸 엔진을 정한다 */
@@ -166,17 +214,16 @@ export function useTts(settings: Ref<Settings>, emotion: Ref<Emotion>) {
       const s = gsvStatus.value
       if (!s || !s.server || !s.pack) {
         active.value = order[1]
+        waitingForGsv = true
         if (!error.value) {
-          error.value = !s?.pack
+          noticeGsvDown(!s?.pack
             ? '카리나 보이스 팩(voices/karina)이 없어 Edge 음성으로 읽을게요.'
-            : `AI 음성 서버(GPT-SoVITS, ${s.url})가 꺼져 있어 Edge 음성으로 읽을게요. README의 "AI 음성" 안내를 참고해 주세요.`
+            : `AI 음성 서버(GPT-SoVITS)가 아직 켜지지 않아 Edge 음성으로 읽을게요. 처음 켤 때는 1~3분 걸리고, 켜지면 자동으로 카리나 목소리로 바뀌어요.`)
         }
       }
-      // 다음 답변을 위해 상태를 새로 확인해 둔다 (켜지면 다시 AI 음성으로)
-      void refreshGsv().then((st) => {
-        if (st?.server && st.pack && tts().provider === 'gsv' && error.value?.includes('Edge 음성으로'))
-          error.value = null
-      })
+      // 상태를 새로 확인한다. 그사이 켜졌으면 이번 답변의 첫 문장부터 AI 음성으로 읽는다
+      void refreshGsv()
+      engines.gsv.unlock?.() // 나중에 AI 음성으로 돌아갈 때도 소리가 나도록 사용자 입력 안에서 허락받아 둔다
     }
     engines[active.value].unlock?.()
   }
