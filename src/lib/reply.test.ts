@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { splitSpeech } from '../tts/chunker'
-import { cleanReply, finishReply, formatReply, type ReplyEvent, ReplyStreamParser, toSegments } from './reply'
+import { CHOICES_KEY, cleanReply, finishReply, formatReply, REPLY_SCHEMA, type ReplyEvent, ReplyStreamParser, toSegments } from './reply'
 
 function run(chunks: string[]) {
   const events: ReplyEvent[] = []
@@ -114,7 +114,13 @@ describe('ReplyStreamParser', () => {
   })
 
   describe('대사 말고 함께 오는 것 (장소·속마음·기억·선택지)', () => {
-    const full = '{"emotion":"flustered","affection":2,"scene":"garden","reply":[{"kind":"action","text":"장미를 만지작거린다"},{"kind":"say","text":"흥, 누가 기다렸대?"}],"thought":"오늘 와 줘서 다행이다…","memory":"포터는 장미보다 백합을 좋아한다","suggestions":["보고 싶었어","그 장미 예쁘다","오늘도 도도하네?"]}'
+    const full = `{"emotion":"flustered","affection":2,"scene":"garden","reply":[{"kind":"action","text":"장미를 만지작거린다"},{"kind":"say","text":"흥, 누가 기다렸대?"}],"thought":"오늘 와 줘서 다행이다…","memory":"포터는 장미보다 백합을 좋아한다","${CHOICES_KEY}":["보고 싶었어","그 장미 예쁘다","오늘도 도도하네?"]}`
+
+    it('선택지 칸 이름이 누구의 말인지 드러낸다 (스키마와 파서가 같은 이름을 쓴다)', () => {
+      expect(CHOICES_KEY).toContain('상대')
+      expect(REPLY_SCHEMA.required).toContain(CHOICES_KEY)
+      expect(Object.keys(REPLY_SCHEMA.properties).at(-1)).toBe(CHOICES_KEY)
+    })
 
     it('값이 완성되면 한 번씩 내보낸다', () => {
       const { events, text } = run([full])
@@ -148,7 +154,7 @@ describe('ReplyStreamParser', () => {
     })
 
     it('빈 기억, 목록에 없는 장소, 선택지 속 별표는 걸러낸다', () => {
-      const { events } = run(['{"emotion":"smirk","affection":0,"scene":"mars","reply":[{"kind":"say","text":"흥."}],"thought":"","memory":" ","suggestions":["*웃는다* 안녕"," ","좋아"]}'])
+      const { events } = run([`{"emotion":"smirk","affection":0,"scene":"mars","reply":[{"kind":"say","text":"흥."}],"thought":"","memory":" ","${CHOICES_KEY}":["*웃는다* 안녕"," ","좋아"]}`])
       expect(events.some(e => e.type === 'scene' || e.type === 'thought' || e.type === 'memory')).toBe(false)
       expect(events).toContainEqual({ type: 'suggestions', items: ['웃는다 안녕', '좋아'] })
     })

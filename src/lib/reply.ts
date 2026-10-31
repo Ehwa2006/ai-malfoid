@@ -17,9 +17,10 @@ export interface ReplySegment {
  */
 /**
  * 선택지 칸의 이름. 모델은 이 이름을 직접 써 내려가면서 값을 채우므로, 이름이 곧 "누구의 말인지" 알려 주는 단서다.
- * ("suggestions"였을 때는 카리나의 다음 대사를 적는 일이 잦았다)
+ * exaone3.5:7.8b로 같은 4턴을 비교했을 때 "suggestions"는 선택지 12개 중 3개만 상대의 말이었고
+ * (나머지는 카리나의 다음 대사), "상대의_대답"은 6개였다.
  */
-export const CHOICES_KEY = 'suggestions'
+export const CHOICES_KEY = '상대의_대답'
 
 export const REPLY_SCHEMA = {
   type: 'object',
@@ -242,7 +243,7 @@ function completedString(s: string, key: string, from: number): string | null {
  * - "emotion", "affection", "scene"은 값이 완성되는 즉시 내보낸다 (키 순서와 무관).
  * - "reply" 목록은 행동 묘사를 *…*로 감싼 텍스트로 바꿔 글자 단위로 내보낸다.
  *   예전 형식(reply가 문자열)도 받는다. 대사 안에 섞인 <|…|> 마커는 MarkerParser가 걸러낸다.
- * - 대사 뒤의 "thought", "memory", "suggestions"는 값이 완성되면 한 번씩 내보낸다.
+ * - 대사 뒤의 "thought", "memory", 선택지(CHOICES_KEY)는 값이 완성되면 한 번씩 내보낸다.
  * - 끝까지 JSON이 아니면(형식을 무시한 모델) 전체를 예전 마커 형식의 텍스트로 처리한다.
  */
 const CHOICES_RE = new RegExp(`"${CHOICES_KEY}"\\s*:\\s*\\[`)
