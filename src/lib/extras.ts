@@ -10,6 +10,9 @@ function bigrams(t: string): Set<string> {
   return new Set(Array.from({ length: Math.max(0, t.length - 1) }, (_, i) => t.slice(i, i + 2)))
 }
 
+/** 평가하는 말의 줄기. 상대가 스스로 이렇게 말했을 때만 기억한다 */
+const PRAISE = /뛰어나|잘하|잘한|잘 하|훌륭|멋지|멋있|대단|능숙|최고|예쁘|귀엽|착하|성숙/
+
 /**
  * 저장해도 될 기억이면 다듬어 돌려주고, 아니면 null.
  * @param name 카리나가 상대를 부르는 이름 ("포터")
@@ -24,6 +27,10 @@ export function cleanMemory(text: string, name: string, userText: string): strin
     return null
   // 카리나 자신에 대한 문장은 상대에 대한 기억이 아니다
   if (/^(카리나|말포이|나는|내가|난 )/.test(clean))
+    return null
+  // 상대가 하지 않은 평가("실력이 뛰어나다", "잘한다")를 덧붙인 기억은 버린다
+  const praise = clean.match(PRAISE)
+  if (praise && !userText.includes(praise[0]))
     return null
   // 상대가 실제로 한 말과 낱말이 겹쳐야 한다 (지어낸 기억을 거른다)
   const body = compact(clean.startsWith(name) ? clean.slice(name.length) : clean)
