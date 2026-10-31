@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { MarkerEvent } from './markers'
 import { splitSpeech } from '../tts/chunker'
-import { cleanReply, finishReply, formatReply, ReplyStreamParser, toSegments } from './reply'
+import { cleanReply, finishReply, formatReply, type ReplyEvent, ReplyStreamParser, toSegments } from './reply'
 
 function run(chunks: string[]) {
-  const events: MarkerEvent[] = []
+  const events: ReplyEvent[] = []
   const parser = new ReplyStreamParser(e => events.push(e))
   chunks.forEach(c => parser.push(c))
   parser.flush()
@@ -112,6 +111,52 @@ describe('ReplyStreamParser', () => {
       { kind: 'say', text: '좋아, 가자. 내가 먼저 준비할 게 있으니까.' },
       { kind: 'action', text: '고급스러운 드레스를 입고 문을 향해 걸어가는 모습' },
     ])
+  })
+
+  describe('대사 말고 함께 오는 것 (장소·속마음·기억·선택지)', () => {
+    const full = '{"emotion":"flustered","affection":2,"scene":"garden","reply":[{"kind":"action","text":"장미를 만지작거린다"},{"kind":"say","text":"흥, 누가 기다렸대?"}],"thought":"오늘 와 줘서 다행이다…","memory":"포터는 장미보다 백합을 좋아한다","suggestions":["보고 싶었어","그 장미 예쁘다","오늘도 도도하네?"]}'
+
+    it('값이 완성되면 한 번씩 내보낸다', () => {
+      const { events, text } = run([full])
+      expect(text).toBe('*장미를 만지작거린다* 흥, 누가 기다렸대?')
+      expect(events).toContainEqual({ type: 'scene', scene: 'garden' })
+      expect(events).toContainEqual({ type: 'thought', text: '오늘 와 줘서 다행이다…' })
+      expect(events).toContainEqual({ type: 'memory', text: '포터는 장미보다 백합을 좋아한다' })
+      expect(events).toContainEqual({ type: 'suggestions', items: ['보고 싶었어', '그 장미 예쁘다', '오늘도 도도하네?'] })
+    })
+
+    it('한 글자씩 쪼개져 와도 같은 결과이고, 각각 한 번만 나온다', () => {
+      const whole = run([full])
+      const split = run(full.split(''))
+      expect(split.text).toBe(whole.text)
+      expect(split.events.filter(e => e.type !== 'text')).toEqual(whole.events.filter(e => e.type !== 'text'))
+      expect(split.events.filter(e => e.type === 'suggestions')).toHaveLength(1)
+    })
+
+    it('대사가 끝났는지 알려 준다 (속마음을 받다가 멈춰도 대사와 호감도는 살린다)', () => {
+      const parser = new ReplyStreamParser(() => {})
+      const cut = full.indexOf('"thought"')
+      parser.push(full.slice(0, full.indexOf('기다렸대')))
+      expect(parser.replyFinished).toBe(false)
+      parser.push(full.slice(full.indexOf('기다렸대'), cut + 14))
+      expect(parser.replyFinished).toBe(true)
+    })
+
+    it('대사가 끝나기 전에는 속마음을 찾지 않는다 (대사 속 낱말에 속지 않게)', () => {
+      const { events } = run(['{"emotion":"smirk","affection":0,"scene":"manor","reply":[{"kind":"say","text":"\\"thought\\": \\"가짜\\""}'])
+      expect(events.some(e => e.type === 'thought')).toBe(false)
+    })
+
+    it('빈 기억, 목록에 없는 장소, 선택지 속 별표는 걸러낸다', () => {
+      const { events } = run(['{"emotion":"smirk","affection":0,"scene":"mars","reply":[{"kind":"say","text":"흥."}],"thought":"","memory":" ","suggestions":["*웃는다* 안녕"," ","좋아"]}'])
+      expect(events.some(e => e.type === 'scene' || e.type === 'thought' || e.type === 'memory')).toBe(false)
+      expect(events).toContainEqual({ type: 'suggestions', items: ['웃는다 안녕', '좋아'] })
+    })
+
+    it('formatReply는 장소와 속마음을 남기고, 기억과 선택지는 빼고 보낸다', () => {
+      const json = JSON.parse(formatReply({ emotion: 'happy', affection: 1, scene: 'tearoom', reply: '*웃는다* 좋아.', thought: '들켰나?' }))
+      expect(json).toEqual({ emotion: 'happy', affection: 1, scene: 'tearoom', reply: [{ kind: 'action', text: '웃는다' }, { kind: 'say', text: '좋아.' }], thought: '들켰나?' })
+    })
   })
 
   it('toSegments는 짝 없는 별표를 말로 둔다', () => {

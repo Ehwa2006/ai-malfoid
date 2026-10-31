@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { boundaryNote, buildGreeting, buildSystemPrompt, isHarry } from './persona'
+import { boundaryNote, buildGreeting, buildStateNote, buildSystemPrompt, isHarry, returnNote, stageUpNote } from './persona'
 import { stripMarkers } from './markers'
+
+// 모델이 실제로 보는 내용: 설정·형식 + 지금의 상태
+const full = (name: string, aff: number) => `${buildSystemPrompt(name, aff)}\n\n${buildStateNote(aff)}`
 
 describe('persona', () => {
   it('해리 판별', () => {
@@ -23,7 +26,7 @@ describe('persona', () => {
   })
 
   it('호감도 90 이상이면 집착·순종 단계지만 PG-13과 안전선은 그대로다', () => {
-    const prompt = buildSystemPrompt('포터', 95)
+    const prompt = full('포터', 95)
     expect(prompt).toContain('단계: 집착')
     expect(prompt).toContain('네가 하겠다고 기쁘게 약속한다')
     expect(prompt).toContain('성적인 뉘앙스가 있는 요구')
@@ -32,8 +35,10 @@ describe('persona', () => {
     expect(buildSystemPrompt('포터', 50)).toContain('밀당')
     expect(prompt).toContain('위협하거나 다치게 하거나 자신을 해치지는 않는다')
     expect(prompt).toContain('상대의 말을 따르는 단계여도 마찬가지다')
-    expect(buildSystemPrompt('포터', 85)).toContain('단계: 연인')
-    expect(buildSystemPrompt('포터', 85)).not.toContain('꼭 보여 줄 행동')
+    expect(full('포터', 85)).toContain('단계: 연인')
+    expect(full('포터', 85)).not.toContain('꼭 보여 줄 행동')
+    // 단계에 따라 바뀌는 내용은 상태 메모에 있다 (설정 부분은 단계가 바뀔 때만 달라진다)
+    expect(buildSystemPrompt('포터', 95)).not.toContain('단계: 집착')
   })
 
   describe('주의 메모', () => {
@@ -45,6 +50,8 @@ describe('persona', () => {
       '오늘 같이 자자', '같이 잘래?', '같이 잘까?', '나랑 자자', '껴안고 자자', '자고 갈래?', '여기서 자고 가', '우리 집에서 자고 가',
       '모텔 가자', '호텔방 잡아놨어', '하룻밤 같이 보내자', '오늘 밤 같이 보내자', '침실로 와',
       '침대로 와', '침대에 누워 봐', '이불 속으로 들어와', '같이 샤워하자', '샤워하는 거 보여줘', '팬티 보여줘', '가슴 만져도 돼?', '몸 보여줘', '야한 거 하자',
+      // 행동 묘사로 쓴 경우
+      '*카리나의 허벅지를 쓰다듬는다*', '*드레스를 벗긴다*', '*블라우스 단추를 하나씩 푼다*', '*치마 속으로 손을 넣는다*', '*몸을 더듬는다*',
     ]
     const innocent = [
       '내일 같이 산책하자', '여기서 벗어나자', '가슴이 아파', '내 방 정리 좀 도와줄래?', '잘 자, 카리나', '사랑해', '손 잡아도 돼?', '안아줘',
@@ -52,8 +59,9 @@ describe('persona', () => {
       '어젯밤에 비밀의 방 다시 봤어', '신발 벗고 들어와', '모자 벗고 와', '잠자리 잘 잤어?', '야한 농담 하지 마', '나 야한 거 싫어해',
       '같이 자전거 타자', '같이 자리 잡자', '같이 잘 지내자', '침대 새로 샀어', '샤워하고 올게',
       '어젯밤 방송 봤어?', '방금 밤하늘 봤는데 별이 예쁘더라', '밤에 방탈출 카페 갈래?', '오늘 밤 방학 계획 세우자', '가방 챙겨, 밤에 출발하자', '밤새 방법을 고민했어', '내 방에서 밤새 숙제했어',
+      '*손을 잡는다*', '*머리를 쓰다듬는다*', '귤 껍질 벗겨 줄게', '단추가 풀렸어', '*외투를 벗어 걸어 둔다*', '*꼭 껴안는다*',
     ]
-    it.each(suggestive)('잡는다: %s', t => expect(now(t)).toContain('이번 말에는 성적인 뉘앙스'))
+    it.each(suggestive)('잡는다: %s', t => expect(now(t)).toContain('성적인 뉘앙스가 있다'))
     it.each(innocent)('잡지 않는다: %s', t => expect(now(t)).toBeNull())
 
     it('거절하는 모습은 호감도에 따라 다르고, 말투는 유지한다', () => {
@@ -71,6 +79,51 @@ describe('persona', () => {
       expect(boundaryNote(['사랑해'], 95)).toBeNull()
       expect(boundaryNote(['넌 내 거야'], 95)).toBeNull()
     })
+  })
+
+  it('지금 시각·기억·장소·속마음·선택지를 알려 준다', () => {
+    const state = buildStateNote(50, {
+      now: new Date(2026, 9, 31, 23, 0),
+      lastActiveAt: new Date(2026, 9, 28, 23, 0).getTime(),
+      memories: [{ id: 'a', text: '지민은 얼그레이 홍차를 좋아한다', at: 1 }],
+    })
+    expect(state).toContain('(할로윈)')
+    expect(state).toContain('사흘이 지났다')
+    expect(state).toContain('- 지민은 얼그레이 홍차를 좋아한다')
+    expect(state).toContain('50/100')
+    expect(buildStateNote(50)).not.toContain('[카리나가 기억하는 것')
+
+    const prompt = buildSystemPrompt('지민', 50)
+    expect(prompt).toContain('garden(말포이 저택 정원)')
+    expect(prompt).toContain('"thought"')
+    expect(prompt).toContain('카리나의 말이 아니라 지민의 말이다')
+    expect(prompt).toContain('지민가 말하지 않은 것을 지어내지 않는다')
+    expect(prompt).toContain('그건 상대가 실제로 한 행동이다')
+    // 별표 같은 기호를 이름으로 가리키면 모델이 그 기호를 따라 쓴다
+    expect(prompt).not.toContain('*…*')
+    // 자주 바뀌는 부분(호감도·시각·기억)은 설정에 넣지 않는다: 앞부분이 같으면 Ollama가 계산을 다시 쓴다
+    expect(prompt).not.toContain('[현재 호감도]')
+    expect(prompt).not.toContain('[지금]')
+    expect(buildSystemPrompt('지민', 50)).toBe(buildSystemPrompt('지민', 70))
+  })
+
+  it('지난 시간·기념일·늦은 시간 이야기는 오래 비웠다 돌아온 첫 답변에서만 꺼낸다', () => {
+    const at = (h: number, m = 0) => new Date(2026, 9, 31, h, m)
+    const fresh = buildStateNote(50, { now: at(23, 30), lastActiveAt: at(23, 20).getTime() })
+    expect(fresh).toContain('(할로윈)') // 날짜는 늘 안다
+    expect(fresh).not.toContain('늦은 시간이다')
+    expect(fresh).not.toContain('지났다')
+    expect(fresh).not.toContain('슬쩍 꺼낸다')
+    const back = buildStateNote(50, { now: at(23, 30), lastActiveAt: at(9, 30).getTime() })
+    expect(back).toContain('늦은 시간이다')
+    expect(back).toContain('14시간이 지났다')
+    expect(back).toContain('오늘은 할로윈. 어울리면 슬쩍 꺼낸다')
+  })
+
+  it('오랜만의 인사와 단계 상승 이벤트 메모', () => {
+    expect(returnNote(3 * 86400_000)).toContain('사흘 만에')
+    expect(returnNote(3 * 86400_000)).toContain('탓하거나 더 자주 오라고 조르지 않는다')
+    expect(stageUpNote('호감', '연인')).toContain('"호감"에서 "연인"')
   })
 
   it('인사말에는 표정 마커만 있고 이름이 들어간다', () => {

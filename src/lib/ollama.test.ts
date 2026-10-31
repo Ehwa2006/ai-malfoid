@@ -14,3 +14,26 @@ describe('pickModel', () => {
     expect(pickModel([], 'exaone3.5:7.8b')).toBe('exaone3.5:7.8b')
   })
 })
+
+describe('streamChat', () => {
+  it('컨텍스트 길이를 늘 같은 값으로 보낸다 (긴 대화가 잘리지 않고, 모델을 다시 올리지 않게)', async () => {
+    const { NUM_CTX, streamChat } = await import('./ollama')
+    const bodies: { options: { num_ctx: number } }[] = []
+    const fetchMock = async (_url: string, init: { body: string }) => {
+      bodies.push(JSON.parse(init.body))
+      return new Response('{"message":{"content":"안녕"},"done":true}\n')
+    }
+    const original = globalThis.fetch
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+    try {
+      let out = ''
+      await streamChat({ baseUrl: '', model: 'm', messages: [], onToken: (t) => { out += t } })
+      expect(out).toBe('안녕')
+      expect(bodies[0].options.num_ctx).toBe(NUM_CTX)
+      expect(NUM_CTX).toBeGreaterThanOrEqual(8192)
+    }
+    finally {
+      globalThis.fetch = original
+    }
+  })
+})

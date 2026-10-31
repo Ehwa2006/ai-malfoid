@@ -2,6 +2,7 @@
 // 작은 모델은 <|EMOTE:…|> 같은 특수 토큰을 자주 빠뜨리지만, 스키마로 디코딩을 제한하면 항상 채운다.
 // 키 순서대로 생성되므로 감정이 먼저 정해져 아바타 표정이 대사보다 앞서 바뀌고, 대사는 흘러나오는 대로 보여준다.
 import { EMOTIONS, MarkerParser, type Emotion, type MarkerEvent } from './markers'
+import { isScene, SCENES, type Scene } from './scenes'
 
 /** 대사의 한 조각: 몸짓·표정 같은 행동 묘사(action) 또는 입으로 하는 말(say) */
 export interface ReplySegment {
@@ -14,11 +15,18 @@ export interface ReplySegment {
  * 한 문자열 안에 *별표*로 행동을 표시하게 하면, 작은 모델은 별표를 빠뜨리거나 "별표:"라고 글자로 쓰기도 한다.
  * 종류를 따로 적게 하면 디코딩 단계에서 형식이 강제되므로 행동과 말이 섞이지 않는다.
  */
+/**
+ * 선택지 칸의 이름. 모델은 이 이름을 직접 써 내려가면서 값을 채우므로, 이름이 곧 "누구의 말인지" 알려 주는 단서다.
+ * ("suggestions"였을 때는 카리나의 다음 대사를 적는 일이 잦았다)
+ */
+export const CHOICES_KEY = 'suggestions'
+
 export const REPLY_SCHEMA = {
   type: 'object',
   properties: {
     emotion: { type: 'string', enum: [...EMOTIONS] },
     affection: { type: 'integer' },
+    scene: { type: 'string', enum: [...SCENES] },
     reply: {
       type: 'array',
       items: {
@@ -30,15 +38,32 @@ export const REPLY_SCHEMA = {
         required: ['kind', 'text'],
       },
     },
+    // 대사 뒤에 둔다: 대사가 먼저 흘러나와 음성이 바로 시작되고, 나머지는 다 읽은 뒤에 붙는다
+    thought: { type: 'string' },
+    memory: { type: 'string' },
+    [CHOICES_KEY]: { type: 'array', items: { type: 'string' }, minItems: 3, maxItems: 3 },
   },
-  required: ['emotion', 'affection', 'reply'],
+  required: ['emotion', 'affection', 'scene', 'reply', 'thought', 'memory', CHOICES_KEY],
 } as const
+
+/** 대사 말고 답변에 함께 오는 것들 */
+export type ReplyEvent =
+  | MarkerEvent
+  | { type: 'scene', scene: Scene }
+  /** 겉으로 하지 않은 속마음 */
+  | { type: 'thought', text: string }
+  /** 상대에 대해 새로 알게 되어 오래 기억할 것 */
+  | { type: 'memory', text: string }
+  /** 상대가 이어서 할 만한 말 (선택지) */
+  | { type: 'suggestions', items: string[] }
 
 export interface ReplyRecord {
   emotion?: Emotion
   affection?: number
+  scene?: Scene
   /** 화면에 보이는 대사 (행동 묘사는 *…*) */
   reply: string
+  thought?: string
 }
 
 /** "*고개를 돌린다* 흥." → [{action: 고개를 돌린다}, {say: 흥.}] */
@@ -55,7 +80,14 @@ export function toSegments(text: string): ReplySegment[] {
 /** 히스토리로 보낼 때도 같은 형식을 써서 모델이 형식을 유지하게 한다. */
 export function formatReply(r: ReplyRecord): string {
   // 이전 버전에서 저장된 깨진 표시("별표:", ＊ 등)는 바로잡아서 보낸다 (모델이 그대로 따라 하지 않게)
-  return JSON.stringify({ emotion: r.emotion ?? 'neutral', affection: r.affection ?? 0, reply: toSegments(finishReply(r.reply)) })
+  // 기억할 것과 선택지는 히스토리에 넣지 않는다 (토큰을 아끼고, 지난 선택지를 따라 하지 않게)
+  return JSON.stringify({
+    emotion: r.emotion ?? 'neutral',
+    affection: r.affection ?? 0,
+    ...(r.scene ? { scene: r.scene } : {}),
+    reply: toSegments(finishReply(r.reply)),
+    ...(r.thought ? { thought: r.thought } : {}),
+  })
 }
 
 const ESCAPES: Record<string, string> = { 'n': '\n', 't': '\t', 'r': '\r', 'b': '\b', 'f': '\f', '"': '"', '\\': '\\', '/': '/' }
@@ -101,25 +133,28 @@ const skipSpace = (s: string, i: number) => {
  * reply 목록을 지금까지 온 만큼 화면용 텍스트("*행동* 말 …")로 바꾼다.
  * 입력이 길어질수록 결과는 뒤에 덧붙기만 하므로, 새로 늘어난 부분만 내보내면 된다.
  */
-function renderSegments(s: string, i: number): string {
+function renderSegments(s: string, i: number): { text: string, end: number } {
   let out = ''
   let started = false
+  const partial = () => ({ text: out, end: -1 })
   while (true) {
     i = skipSpace(s, i)
-    if (i >= s.length || s[i] === ']')
-      return out
+    if (i >= s.length)
+      return partial()
+    if (s[i] === ']')
+      return { text: out, end: i + 1 }
     if (s[i] === ',') {
       i++
       continue
     }
     if (s[i] !== '{')
-      return out
+      return partial()
     i++
     let kind: string | null = null
     while (true) {
       i = skipSpace(s, i)
       if (i >= s.length)
-        return out
+        return partial()
       if (s[i] === ',') {
         i++
         continue
@@ -129,16 +164,16 @@ function renderSegments(s: string, i: number): string {
         break
       }
       if (s[i] !== '"')
-        return out
+        return partial()
       const key = readString(s, i + 1)
       if (!key.closed)
-        return out
+        return partial()
       i = skipSpace(s, key.end)
       if (s[i] !== ':')
-        return out
+        return partial()
       i = skipSpace(s, i + 1)
       if (i >= s.length)
-        return out
+        return partial()
       if (s[i] !== '"') { // 문자열이 아닌 값은 건너뛴다
         while (i < s.length && s[i] !== ',' && s[i] !== '}')
           i++
@@ -147,7 +182,7 @@ function renderSegments(s: string, i: number): string {
       const value = readString(s, i + 1)
       if (key.value === 'kind') {
         if (!value.closed)
-          return out
+          return partial()
         kind = value.value.trim().toLowerCase()
       }
       else if (key.value === 'text') {
@@ -164,29 +199,73 @@ function renderSegments(s: string, i: number): string {
         }
       }
       if (!value.closed)
-        return out
+        return partial()
       i = value.end
     }
   }
 }
 
+/** s[i]부터 완성된 JSON 문자열 목록을 읽는다 ("[" 다음 위치). 아직 다 오지 않았으면 null */
+function readStringArray(s: string, i: number): string[] | null {
+  const items: string[] = []
+  while (true) {
+    i = skipSpace(s, i)
+    if (i >= s.length)
+      return null
+    if (s[i] === ']')
+      return items
+    if (s[i] === ',') {
+      i++
+      continue
+    }
+    if (s[i] !== '"')
+      return items // 문자열이 아닌 것이 섞였다
+    const item = readString(s, i + 1)
+    if (!item.closed)
+      return null
+    items.push(item.value)
+    i = item.end
+  }
+}
+
+/** 완성된 "key": "값"을 읽는다 (from 이후에서) */
+function completedString(s: string, key: string, from: number): string | null {
+  const m = new RegExp(`"${key}"\\s*:\\s*"`).exec(s.slice(from))
+  if (!m)
+    return null
+  const value = readString(s, from + m.index + m[0].length)
+  return value.closed ? value.value : null
+}
+
 /**
- * 스트리밍되는 JSON 답변을 조금씩 읽어 MarkerEvent로 바꾼다.
- * - "emotion", "affection"은 값이 완성되는 즉시 내보낸다 (키 순서와 무관).
+ * 스트리밍되는 JSON 답변을 조금씩 읽어 ReplyEvent로 바꾼다.
+ * - "emotion", "affection", "scene"은 값이 완성되는 즉시 내보낸다 (키 순서와 무관).
  * - "reply" 목록은 행동 묘사를 *…*로 감싼 텍스트로 바꿔 글자 단위로 내보낸다.
  *   예전 형식(reply가 문자열)도 받는다. 대사 안에 섞인 <|…|> 마커는 MarkerParser가 걸러낸다.
+ * - 대사 뒤의 "thought", "memory", "suggestions"는 값이 완성되면 한 번씩 내보낸다.
  * - 끝까지 JSON이 아니면(형식을 무시한 모델) 전체를 예전 마커 형식의 텍스트로 처리한다.
  */
+const CHOICES_RE = new RegExp(`"${CHOICES_KEY}"\\s*:\\s*\\[`)
+
 export class ReplyStreamParser {
   private buf = ''
   private emotionDone = false
   private affectionDone = false
+  private sceneDone = false
   private replyPos = -1
+  /** 대사가 끝난 위치 (아직이면 -1) */
+  private replyEnd = -1
   private emitted = 0
+  private readonly done = new Set<string>()
   private readonly text: MarkerParser
 
-  constructor(private readonly emit: (event: MarkerEvent) => void) {
+  constructor(private readonly emit: (event: ReplyEvent) => void) {
     this.text = new MarkerParser(emit)
+  }
+
+  /** 대사(reply)가 끝까지 왔는지. 뒤의 속마음·선택지를 받다가 멈춰도 대사와 호감도는 살릴 수 있다 */
+  get replyFinished(): boolean {
+    return this.replyEnd >= 0
   }
 
   push(chunk: string): void {
@@ -208,19 +287,66 @@ export class ReplyStreamParser {
         this.emit({ type: 'affection', delta: Number.parseInt(m[1], 10) })
       }
     }
+    if (!this.sceneDone && this.replyPos < 0) {
+      const m = /"scene"\s*:\s*"([^"\\]*)"/.exec(this.buf)
+      if (m) {
+        this.sceneDone = true
+        const scene = m[1].trim().toLowerCase()
+        if (isScene(scene))
+          this.emit({ type: 'scene', scene })
+      }
+    }
     if (this.replyPos < 0) {
       const m = /"reply"\s*:\s*([["])/.exec(this.buf)
       if (m)
         this.replyPos = m.index + m[0].length
     }
-    if (this.replyPos >= 0) {
+    if (this.replyPos >= 0 && this.replyEnd < 0) {
       const opener = this.buf[this.replyPos - 1]
+      let rendered: string
+      if (opener === '[') {
+        const r = renderSegments(this.buf, this.replyPos)
+        rendered = r.text
+        this.replyEnd = r.end
+      }
+      else {
+        const r = readString(this.buf, this.replyPos)
+        rendered = r.value
+        this.replyEnd = r.closed ? r.end : -1
+      }
       // 문장 사이에 끼는 밑줄("있었지._하긴")은 띄어쓰기로 바꾼다. 앞 글자만 보고 정하므로 뒤에 덧붙기만 한다는 성질은 그대로다.
       // (이름이나 ^_^ 같은 데 쓰인 밑줄은 건드리지 않는다)
-      const rendered = (opener === '[' ? renderSegments(this.buf, this.replyPos) : readString(this.buf, this.replyPos).value).replace(SENTENCE_UNDERSCORE, ' ')
+      rendered = rendered.replace(SENTENCE_UNDERSCORE, ' ')
       if (rendered.length > this.emitted) {
         this.text.push(rendered.slice(this.emitted))
         this.emitted = rendered.length
+      }
+    }
+    if (this.replyEnd >= 0)
+      this.readExtras()
+  }
+
+  /** 대사 뒤에 오는 속마음·기억·선택지 */
+  private readExtras() {
+    for (const key of ['thought', 'memory'] as const) {
+      if (this.done.has(key))
+        continue
+      const value = completedString(this.buf, key, this.replyEnd)
+      if (value === null)
+        continue
+      this.done.add(key)
+      const text = value.replace(/\s+/g, ' ').trim()
+      if (text)
+        this.emit({ type: key, text })
+    }
+    if (!this.done.has('suggestions')) {
+      const m = CHOICES_RE.exec(this.buf.slice(this.replyEnd))
+      const items = m ? readStringArray(this.buf, this.replyEnd + m.index + m[0].length) : null
+      if (items) {
+        this.done.add('suggestions')
+        const clean = items.map(t => t.replace(/[*＊]/g, '').replace(/\s+/g, ' ').trim()).filter(Boolean)
+        if (clean.length)
+          this.emit({ type: 'suggestions', items: clean })
       }
     }
   }

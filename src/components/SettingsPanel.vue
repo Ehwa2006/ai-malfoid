@@ -32,7 +32,7 @@ function onModelFile(e: Event) {
 }
 
 function confirmReset() {
-  if (confirm('대화와 호감도를 모두 초기화할까요?'))
+  if (confirm('대화, 호감도, 카리나의 기억과 일기를 모두 지우고 처음부터 다시 시작할까요?'))
     emit('reset')
 }
 
@@ -75,7 +75,12 @@ onMounted(refresh)
 
     <label>
       기억할 최근 대화 수: {{ settings.historyLimit }}
-      <input v-model.number="settings.historyLimit" type="range" min="4" max="60" step="2">
+      <input v-model.number="settings.historyLimit" type="range" min="4" max="40" step="2">
+    </label>
+
+    <label class="check">
+      <input v-model="settings.showChoices" type="checkbox">
+      답변 아래에 선택지(이어서 할 말 3개) 보이기
     </label>
 
     <label>
@@ -183,7 +188,7 @@ onMounted(refresh)
       </template>
     </fieldset>
 
-    <button class="danger" @click="confirmReset">대화 & 호감도 초기화</button>
+    <button class="danger" @click="confirmReset">처음부터 다시 (대화·호감도·기억·일기)</button>
   </div>
 </template>
 

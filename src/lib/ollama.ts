@@ -15,8 +15,13 @@ export interface ChatOptions {
   /** 구조화 출력용 JSON 스키마 (Ollama `format`) */
   format?: unknown
   signal?: AbortSignal
+  /** 컨텍스트 길이 (토큰). 기본 NUM_CTX */
+  numCtx?: number
   onToken: (token: string) => void
 }
+
+/** 설정 프롬프트(약 2천5백 토큰)와 대화 기록(최대 40개 남짓)이 함께 들어가는 길이 */
+export const NUM_CTX = 8192
 
 interface ChatChunk {
   message?: { content?: string }
@@ -58,7 +63,9 @@ export async function streamChat(opts: ChatOptions): Promise<void> {
       messages: opts.messages,
       stream: true,
       ...(opts.format ? { format: opts.format } : {}),
-      options: { temperature: opts.temperature ?? 0.8 },
+      // 기본(4096)이면 설정 프롬프트와 대화 20여 개가 넘쳐 앞부분이 잘린다 (잘리면 캐시도 못 쓴다).
+      // 요청마다 같은 값을 보내야 Ollama가 모델을 다시 올리지 않는다.
+      options: { temperature: opts.temperature ?? 0.8, num_ctx: opts.numCtx ?? NUM_CTX },
     }),
   })
   if (!res.ok || !res.body)
