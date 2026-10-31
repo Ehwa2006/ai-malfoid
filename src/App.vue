@@ -4,7 +4,8 @@ import { DEFAULT_MODEL_URL, useChat } from './composables/useChat'
 import { useTts } from './composables/useTts'
 import { callName, CHARACTER_NAME, CHARACTER_TAGLINE } from './lib/persona'
 import { SCENE_INFO } from './lib/scenes'
-import MalfoyAvatar from './components/MalfoyAvatar.vue'
+import { actionMessage, GIFTS, TOUCHES } from './lib/interactions'
+import KarinaPortrait from './components/portrait/KarinaPortrait.vue'
 import AffectionMeter from './components/AffectionMeter.vue'
 import MessageBubble from './components/MessageBubble.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
@@ -111,10 +112,19 @@ function onModelFile(file: File) {
   localModelUrl.value = URL.createObjectURL(file)
 }
 
+// 선물·다가가기를 보내면 2D 초상화가 답을 기다리지 않고 바로 반응한다
+const ACTION_IDS = new Map([...GIFTS, ...TOUCHES].map(item => [actionMessage(item), item.id]))
+const reaction = ref<{ id: string, at: number } | null>(null)
+/** 첫 글자가 오기 전: 생각하는 몸짓 */
+const thinking = computed(() => isStreaming.value && messages.value.at(-1)?.role === 'assistant' && !messages.value.at(-1)?.text)
+
 async function sendText(text: string) {
   if (isStreaming.value)
     return
   showTray.value = false
+  const actionId = ACTION_IDS.get(text.trim())
+  if (actionId)
+    reaction.value = { id: actionId, at: Date.now() }
   tts.unlock() // 보내기(사용자 입력) 순간에 소리 재생을 허락받아 둔다
   await send(text)
 }
@@ -131,6 +141,18 @@ async function submit() {
 // 선물 상자: 바깥을 누르면 닫히고, 키보드로 닫으면 🎁 버튼으로 돌아온다
 const trayWrap = ref<HTMLElement>()
 const trayBtn = ref<HTMLButtonElement>()
+/** 초상화의 머리·볼을 눌렀을 때. 아직 허락하지 않은 손길이면 보내지 않고 피한다 */
+function onPortraitTouch(id: 'pat' | 'poke') {
+  const item = TOUCHES.find(t => t.id === id)
+  if (!item || isStreaming.value)
+    return
+  if ((item.minAffection ?? 0) > affection.value) {
+    reaction.value = { id: 'dodge', at: Date.now() }
+    return
+  }
+  void sendText(actionMessage(item))
+}
+
 function closeTray(refocus: boolean) {
   showTray.value = false
   if (refocus)
@@ -175,7 +197,18 @@ watch(() => messages.value.map(m => m.text.length).join() + choices.value.length
         :model-url="modelUrl"
         @error="error = $event"
       />
-      <MalfoyAvatar v-else :emotion="emotion" :speaking="speaking" />
+      <KarinaPortrait
+        v-else
+        :emotion="emotion"
+        :speaking="speaking"
+        :mouth-level="mouthLevel"
+        :scene="scene"
+        :affection="affection"
+        :reaction="reaction"
+        :thinking="thinking"
+        interactive
+        @touch="onPortraitTouch"
+      />
       <p v-if="usingDefaultModel" class="credit">
         3D 모델: <a href="https://sketchfab.com/3d-models/harry-potter-malfoy-draconia-3d-model-dl-49a0f6d87e7b4079a6a6a5b15768e627" target="_blank" rel="noopener">"Malfoy Draconia" by HiGuys920</a>
         · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> · VRM 변환
@@ -435,7 +468,7 @@ h1 { margin: 8px 0 0; font-size: 1.3rem; letter-spacing: 0.04em; }
     padding: 12px 16px;
     max-height: 45vh;
   }
-  .stage :deep(.avatar) { max-width: 90px; }
+  .stage :deep(.portrait) { max-width: min(170px, 28vh); }
   .stage :deep(.avatar3d) { max-width: 120px; }
   h1, .sub { display: none; }
   .messages, .composer, .choices { padding-left: 16px; padding-right: 16px; }

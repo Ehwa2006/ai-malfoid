@@ -45,7 +45,7 @@ export interface Settings {
   temperature: number
   /** LLM에 보낼 최근 메시지 수 (컨텍스트 절약) */
   historyLimit: number
-  /** 아바타 표시 방식: 원본 VRM 모델 / 코드로 만든 3D 모델 / 2D SVG */
+  /** 아바타 표시 방식: 원본 VRM 모델 / 코드로 만든 3D 모델 / 2D 일러스트 초상화 */
   avatarMode: 'vrm' | 'procedural' | '2d'
   /** VRM 모드에서 쓸 모델(.vrm/.glb) 주소. 비우면 기본 모델(Malfoy Draconia)을 쓴다. */
   modelUrl: string
@@ -78,7 +78,7 @@ const DEFAULT_SETTINGS: Settings = {
   userName: '포터',
   temperature: 0.8,
   historyLimit: 20,
-  avatarMode: 'vrm',
+  avatarMode: '2d',
   modelUrl: '',
   showChoices: true,
   tts: {
@@ -128,6 +128,14 @@ export function useChat() {
   settings.value.tts.openai = { ...DEFAULT_SETTINGS.tts.openai, ...settings.value.tts.openai }
   // 컨텍스트(NUM_CTX)에 들어가는 만큼만 (이전 버전은 60까지 고를 수 있었다)
   settings.value.historyLimit = Math.min(MAX_HISTORY, Math.max(4, settings.value.historyLimit))
+  // 새 2D 일러스트 초상화를 한 번 보여 준다 (설정에서 다시 3D로 바꿀 수 있다)
+  try {
+    if (!localStorage.getItem('malfoid:portrait2d')) {
+      settings.value.avatarMode = '2d'
+      localStorage.setItem('malfoid:portrait2d', '1')
+    }
+  }
+  catch {}
   // 이전 버전의 '3d'(코드로 만든 모델)는 원본 VRM 모델로 옮긴다
   if (!['vrm', 'procedural', '2d'].includes(settings.value.avatarMode))
     settings.value.avatarMode = 'vrm'
