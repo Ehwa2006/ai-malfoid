@@ -196,8 +196,10 @@ export function useChat() {
     speak: boolean
     /** 오랜만에 찾아왔을 때 먼저 거는 인사 (호감도·기억이 바뀌지 않는다) */
     greeting?: boolean
-    /** 성적인 요구를 거절해야 하는 턴 (호감도가 오르지 않고, 기억하지 않는다) */
+    /** 이번 말이 성적인 요구라 거절하는 턴 (호감도가 오르지 않고, 기억하지 않는다) */
     guarded?: boolean
+    /** 호감도가 오르지 않는 턴 (거절한 바로 뒤라 아직 토라져 있다) */
+    noRise?: boolean
     /** 이번 답변에서 단계 상승 이벤트를 보여 준다 */
     showsEvent?: boolean
     /** 이번에 상대가 한 말 (기억은 이 말에서만 나온다) */
@@ -210,7 +212,7 @@ export function useChat() {
    * @returns 답변을 받아 호감도·기억까지 반영했는지
    */
   async function runReply(notes: string[], opts: ReplyOptions): Promise<boolean> {
-    const { speak, greeting = false, guarded = false, showsEvent = false, userText = '' } = opts
+    const { speak, greeting = false, guarded = false, noRise = guarded, showsEvent = false, userText = '' } = opts
     error.value = null
     lastDelta.value = null
     const started = epoch
@@ -265,7 +267,7 @@ export function useChat() {
     const commit = () => {
       reply.text = finishReply(reply.text)
       // 먼저 건 인사로는 호감도가 바뀌지 않고, 거절하는 턴에는 오르지 않는다
-      const applied = greeting ? 0 : guarded ? Math.min(0, clampDelta(delta)) : clampDelta(delta)
+      const applied = greeting ? 0 : noRise ? Math.min(0, clampDelta(delta)) : clampDelta(delta)
       reply.affectionDelta = applied
       const before = affection.value
       affection.value = clampAffection(before + applied)
@@ -354,7 +356,8 @@ export function useChat() {
       notes.push(guard)
     else if (event)
       notes.push(stageUpNote(event.from, event.to))
-    await runReply(notes, { speak: true, guarded: !!guard, showsEvent: !!event, userText: content })
+    // 이번 말이 문제면 기억도 하지 않고, 조금 전의 말 때문이면 호감도만 오르지 않는다 (이번 말은 평범하므로 기억은 한다)
+    await runReply(notes, { speak: true, guarded: suggestive(content), noRise: !!guard, showsEvent: !!event, userText: content })
   }
 
   /** 오랜만에(6시간 넘게) 다시 찾아왔으면 카리나가 먼저 말을 건다 */
