@@ -7,7 +7,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import type { Emotion } from '../../lib/markers'
 import type { Scene } from '../../lib/scenes'
 import { blushFor, EXPRESSIONS, type MouthShape } from '../../avatar2d/expressions'
-import { EMOTION_EFFECTS, type Effect, gesture, type GestureId, pickGesture, type Prop, reactionFor } from '../../avatar2d/gestures'
+import { EMOTION_EFFECTS, type Effect, gesture, type GestureId, pickGesture, pickHabit, type Prop, reactionFor } from '../../avatar2d/gestures'
 import { blinkCurve, nextBlink, seeded, Spring } from '../../avatar2d/motion'
 import { backHair, bangClumps, fanClosedPath, fanOpenPaths, handPaths, mouthPaths, ringlet, sleeve } from '../../avatar2d/paint'
 import SceneBackdrop from './SceneBackdrop.vue'
@@ -47,8 +47,38 @@ function followEmotion() {
   if (props.fixedGesture || reacting.value)
     return
   gestureId.value = pickGesture(props.emotion, props.scene, gestureId.value, rand)
+  baseGesture = gestureId.value
+  habitAt = r.t + 14 + rand() * 12
 }
 watch(() => props.emotion, followEmotion)
+
+// 버릇: 한동안 조용하면 혼자 머리를 넘기거나 찻잔을 드는 등 잠깐 다른 몸짓을 했다가 돌아온다
+let baseGesture: GestureId = gestureId.value
+let habitAt = 16
+let habitUntil = 0
+function habits(t: number) {
+  if (props.fixedGesture || reacting.value || props.speaking || props.thinking)
+    return
+  if (habitUntil && t > habitUntil) {
+    habitUntil = 0
+    gestureId.value = baseGesture
+    habitAt = t + 14 + rand() * 14
+  }
+  else if (!habitUntil && t > habitAt) {
+    const habit = pickHabit(props.emotion, props.scene, gestureId.value, rand)
+    if (habit) {
+      gestureId.value = habit
+      habitUntil = t + 3.5 + rand() * 2
+    }
+    else {
+      habitAt = t + 14
+    }
+  }
+}
+
+// 시선의 작은 떨림 (사람 눈은 가만히 있지 않는다)
+let saccadeAt = 1
+const saccade = { x: 0, y: 0 }
 watch(() => props.fixedGesture, (g) => {
   if (g)
     gestureId.value = g
@@ -156,14 +186,22 @@ function frame(dt: number) {
   // 고개: 몸짓 + 숨쉬듯 아주 작은 흔들림 + 상대(마우스)를 향하는 정도
   const head = gs.head ?? {}
   const look = gs.gaze ? 0 : 0.22
+  // 말하는 동안은 말의 리듬에 맞춰 고개를 살짝 끄덕이고 갸웃한다
+  const talk = props.speaking ? r.mouth : 0
   r.yaw = S.yaw.step((head.yaw ?? 0) + pointer.x * look + Math.sin(t * 0.37) * 0.04, dt)
-  r.pitch = S.pitch.step((head.pitch ?? 0) + pointer.y * look * 0.6 + Math.sin(t * 0.29) * 0.03, dt)
-  r.roll = S.roll.step((head.roll ?? 0) + Math.sin(t * 0.51) * 1.1, dt)
+  r.pitch = S.pitch.step((head.pitch ?? 0) + pointer.y * look * 0.6 + Math.sin(t * 0.29) * 0.03 + talk * 0.08, dt)
+  r.roll = S.roll.step((head.roll ?? 0) + Math.sin(t * 0.51) * 1.1 + (props.speaking ? Math.sin(t * 2.3) * 1.4 : 0), dt)
   r.breath = Math.sin((t * Math.PI * 2) / 4.4)
 
   const gz = gs.gaze ?? { x: pointer.x, y: pointer.y }
-  r.gazeX = S.gazeX.step(gz.x - r.yaw * 0.4, dt)
-  r.gazeY = S.gazeY.step(gz.y, dt)
+  if (t > saccadeAt) {
+    saccade.x = (rand() - 0.5) * 0.35
+    saccade.y = (rand() - 0.5) * 0.2
+    saccadeAt = t + 0.8 + rand() * 2.6
+  }
+  r.gazeX = S.gazeX.step(gz.x - r.yaw * 0.4 + saccade.x, dt)
+  r.gazeY = S.gazeY.step(gz.y + saccade.y, dt)
+  habits(t)
 
   // 눈 깜빡임 (눈을 감은 표정일 때는 쉬어 간다)
   if (t >= blinkAt) {
@@ -251,6 +289,28 @@ const backT = computed(() => layer(-5, -2))
 const bodyT = computed(() => `translate(0 ${num(-r.breath * 1.2)})`)
 
 const backHairD = computed(() => backHair(r.backSway))
+
+/** 장소의 빛이 머리카락·어깨 가장자리에 닿는 색 (림 라이트) */
+const RIM: Record<Scene, string> = {
+  manor: '#a9c2ff',
+  garden: '#ffc49c',
+  tearoom: '#ffc77e',
+  hogsmeade: '#ffd9a3',
+  quidditch: '#ffffff',
+  library: '#ffbb70',
+  london: '#ffd6a8',
+}
+const rim = computed(() => RIM[props.scene])
+
+/** 홍채의 결 (동공에서 퍼져 나가는 가는 선) */
+function irisStreaks(x: number, y: number) {
+  let d = ''
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2 + 0.2
+    d += `M${num(x + Math.cos(a) * 4.6)} ${num(y + Math.sin(a) * 5.4)} L${num(x + Math.cos(a) * 9.4)} ${num(y + Math.sin(a) * 10.4)} `
+  }
+  return d
+}
 const lockL = computed(() => ringlet(-1, r.sideSwayL))
 const lockR = computed(() => ringlet(1, r.sideSwayR))
 const clumps = bangClumps()
@@ -346,6 +406,12 @@ function touch(id: 'pat' | 'poke') {
           <stop offset="0.75" stop-color="#7e6f55" stop-opacity="0" />
           <stop offset="1" stop-color="#7e6f55" stop-opacity="0.6" />
         </linearGradient>
+        <linearGradient :id="`${uid}-rim`" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" :stop-color="rim" stop-opacity="0.5" />
+          <stop offset="0.12" :stop-color="rim" stop-opacity="0" />
+          <stop offset="0.8" :stop-color="rim" stop-opacity="0" />
+          <stop offset="1" :stop-color="rim" stop-opacity="0.95" />
+        </linearGradient>
         <linearGradient id="kp-face-shade" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0" stop-color="#d79f8c" stop-opacity="0.18" />
           <stop offset="0.35" stop-color="#d79f8c" stop-opacity="0" />
@@ -423,6 +489,7 @@ function touch(id: 'pat' | 'poke') {
           <path :d="backHairD" fill="url(#kp-hair-edge)" />
           <path d="M96 60 C80 140 78 240 70 380 M118 40 C102 140 100 260 96 380 M182 40 C198 140 200 260 204 380 M204 60 C220 140 222 240 230 380 M80 110 C72 200 66 300 58 380 M220 110 C228 200 234 300 242 380" stroke="#9c8d70" stroke-width="1.2" fill="none" opacity="0.45" />
           <path d="M88 120 C82 200 80 280 76 360 M212 120 C218 200 220 280 224 360" stroke="#fffaf0" stroke-width="2.4" fill="none" opacity="0.35" stroke-linecap="round" />
+          <path :d="backHairD" fill="none" :stroke="`url(#${uid}-rim)`" stroke-width="3.2" />
         </g>
       </g>
 
@@ -433,12 +500,21 @@ function touch(id: 'pat' | 'poke') {
         <!-- 어깨의 빛 -->
         <path d="M62 266 C78 252 104 244 124 241" stroke="#4d6a5a" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.6" />
         <path d="M238 266 C222 252 196 244 176 241" stroke="#4d6a5a" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.45" />
+        <!-- 로브 주름과 장소의 빛 -->
+        <path d="M70 300 C76 330 78 360 76 392 M232 300 C226 330 222 360 224 392 M96 320 C100 350 100 372 98 392 M204 320 C200 350 200 372 202 392" stroke="#070b09" stroke-width="2.2" fill="none" opacity="0.55" stroke-linecap="round" />
+        <path d="M84 310 C88 340 88 366 86 392 M216 310 C212 340 212 366 214 392" stroke="#3d5a4b" stroke-width="1.4" fill="none" opacity="0.5" stroke-linecap="round" />
+        <path d="M54 274 C64 252 104 240 128 236 M172 236 C196 240 236 252 246 274 C256 304 258 352 260 392" fill="none" :stroke="`url(#${uid}-rim)`" stroke-width="3" />
         <!-- 블라우스 -->
         <path d="M130 236 C126 276 122 334 118 392 L182 392 C178 334 174 276 170 236 Z" fill="url(#kp-blouse)" />
         <!-- 로브 안감(초록)과 은색 테두리 -->
         <path d="M128 236 C122 280 112 340 106 392 L118 392 C122 334 126 276 130 236 Z" fill="#1f5a3d" />
         <path d="M172 236 C178 280 188 340 194 392 L182 392 C178 334 174 276 170 236 Z" fill="#1f5a3d" />
         <path d="M128 236 C122 280 112 340 106 392 M172 236 C178 280 188 340 194 392" stroke="url(#kp-silver)" stroke-width="1.6" fill="none" />
+        <!-- 은실 덩굴 자수 -->
+        <g stroke="#c9d2d6" stroke-width="0.9" fill="none" opacity="0.75" stroke-linecap="round">
+          <path d="M124 262 q-6 4 -3 9 q4 3 6 -2 M120 292 q-6 4 -3 9 q4 3 6 -2 M115 324 q-6 4 -3 9 q4 3 6 -2 M111 356 q-6 4 -3 9 q4 3 6 -2" />
+          <path d="M176 262 q6 4 3 9 q-4 3 -6 -2 M180 292 q6 4 3 9 q-4 3 -6 -2 M185 324 q6 4 3 9 q-4 3 -6 -2 M189 356 q6 4 3 9 q-4 3 -6 -2" />
+        </g>
         <!-- 높은 깃 -->
         <path d="M134 206 Q150 214 166 206 L168 232 Q150 242 132 232 Z" fill="url(#kp-blouse)" stroke="#cfc6b8" stroke-width="0.8" />
         <path d="M133 230 Q150 240 167 230" stroke="#bdb3a4" stroke-width="0.8" fill="none" />
@@ -499,6 +575,7 @@ function touch(id: 'pat' | 'poke') {
                   <!-- 위 눈꺼풀 그림자 -->
                   <ellipse :cx="num(e.ix)" :cy="num(e.iy)" rx="11" ry="12" fill="url(#kp-iris)" stroke="#2b333c" stroke-width="1.1" />
                   <ellipse :cx="num(e.ix)" :cy="num(e.iy)" rx="7" ry="7.8" fill="none" stroke="#56636f" stroke-width="0.6" opacity="0.7" />
+                  <path :d="irisStreaks(e.ix, e.iy)" stroke="#d6e2ea" stroke-width="0.6" opacity="0.35" />
                   <ellipse :cx="num(e.ix)" :cy="num(e.iy + 0.6)" :rx="num(4 * expr.pupil)" :ry="num(5.4 * expr.pupil)" fill="#1b2026" />
                   <ellipse :cx="num(e.ix)" :cy="num(e.iy + 6.4)" rx="6.6" ry="3" fill="#dce9f1" opacity="0.5" />
                   <!-- 위 눈꺼풀 그림자 -->
@@ -526,7 +603,9 @@ function touch(id: 'pat' | 'poke') {
             <path v-if="mouth.inner" :d="mouth.inner" fill="#7a2e3b" />
             <path v-if="mouth.tongue" :d="mouth.tongue" fill="#e07d8a" />
             <path :d="mouth.line" stroke="#a9505f" stroke-width="1.7" stroke-linecap="round" fill="none" />
-            <path :d="mouth.lip" stroke="#e9a3ad" stroke-width="1.4" stroke-linecap="round" fill="none" opacity="0.8" />
+            <path :d="mouth.lip" stroke="#e9a3ad" stroke-width="1.6" stroke-linecap="round" fill="none" opacity="0.85" />
+            <ellipse v-if="!mouth.inner" cx="151.6" cy="182.4" rx="1.6" ry="0.7" fill="#fff" opacity="0.6" />
+            <path d="M148.4 170.4 Q150 172 151.6 170.4" stroke="#dcab9a" stroke-width="0.7" fill="none" opacity="0.6" />
           </g>
         </g>
 
@@ -556,11 +635,14 @@ function touch(id: 'pat' | 'poke') {
           <path d="M70 128 C62 64 100 22 150 20 C200 22 238 64 230 128 C226 100 214 80 196 70 C176 62 124 62 104 70 C86 80 74 100 70 128 Z" fill="url(#kp-hair)" />
           <path v-for="(c, k) in clumps" :key="k" :d="c.d" fill="url(#kp-hair)" />
           <path v-for="(c, k) in clumps" :key="`i${k}`" :d="c.inner" stroke="#c9bc9b" stroke-width="1.1" fill="none" stroke-linecap="round" />
+          <g stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" opacity="0.7">
+            <path d="M88 84 l-3 12" /><path d="M112 78 l-3 14" /><path d="M140 76 l-1.6 12" /><path d="M176 78 l2 11" /><path d="M200 82 l3 12" />
+          </g>
           <path d="M70 128 C62 64 100 22 150 20 C200 22 238 64 230 128" stroke="#b9aa86" stroke-width="1" fill="none" />
           <!-- 머리결 -->
           <path d="M166 24 C142 34 122 48 108 66 M166 24 C186 34 206 50 218 72 M150 24 C120 34 98 50 84 78" stroke="#dcd1b5" stroke-width="0.9" fill="none" opacity="0.8" />
           <!-- 천사의 고리 (머리 윗부분의 반짝임) -->
-          <path d="M82 62 C110 44 192 44 220 62 C194 54 108 54 82 62 Z" fill="url(#kp-ring)" opacity="0.85" />
+          <path d="M90 58 C114 46 188 46 212 58 C190 52 112 52 90 58 Z" fill="url(#kp-ring)" opacity="0.55" />
           <g stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" opacity="0.75">
             <path d="M100 55 l8 -3" /><path d="M118 49 l10 -2" /><path d="M172 47 l10 2" /><path d="M192 51 l8 3" />
           </g>

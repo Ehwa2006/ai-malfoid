@@ -200,6 +200,22 @@ export function pickGesture(emotion: Emotion, scene: Scene, last: GestureId | nu
   return pool[pool.length - 1][0]
 }
 
+/** 한동안 말이 없을 때 혼자 하는 버릇 (감정별). 몇 초 하다가 원래 몸짓으로 돌아온다 */
+const HABITS: Record<Emotion, GestureId[]> = {
+  neutral: ['hairFlip', 'chin', 'teacup'],
+  smirk: ['hairFlip', 'fanLaugh', 'fanPoint'],
+  annoyed: ['armsCrossed', 'fanPoint'],
+  flustered: ['fidget', 'fanHide'],
+  happy: ['teacup', 'clasp', 'hairFlip'],
+  sad: ['clutch'],
+  surprised: ['coverMouth'],
+}
+
+export function pickHabit(emotion: Emotion, scene: Scene, current: GestureId, rand: () => number): GestureId | null {
+  const options = HABITS[emotion].filter(id => id !== current && (id !== 'teacup' || NEEDS_TEA.includes(scene)))
+  return options.length ? options[Math.floor(rand() * options.length)] : null
+}
+
 /** 감정마다 기본으로 띄우는 효과 */
 export const EMOTION_EFFECTS: Record<Emotion, Effect[]> = {
   neutral: [],
