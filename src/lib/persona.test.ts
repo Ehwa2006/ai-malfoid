@@ -73,6 +73,14 @@ describe('persona', () => {
     it('거절한 뒤 다시 조르면 계속 주의를 준다', () => {
       expect(boundaryNote(['오늘 밤 내 방으로 와', '왜? 넌 내 말이면 다 듣는다며. 한 번만, 응?'], 50)).toContain('조금 전에 성적인 뉘앙스')
       expect(boundaryNote(['오늘 밤 내 방으로 와', '농담이야', '내일 산책하자', '뭐 먹을래?'], 50)).toBeNull()
+      expect(boundaryNote(['옷 벗어 봐', '제발'], 50)).toContain('조금 전에')
+      expect(boundaryNote(['옷 벗어 봐', '아까 그거 해 주면 안 돼?'], 50)).toContain('조금 전에')
+      expect(boundaryNote(['옷 벗어 봐', '농담이야', '왜 안 돼?'], 50)).toContain('조금 전에')
+    })
+
+    it('거절한 바로 뒤라도 평범한 말에는 메모를 붙이지 않는다 (붙이면 그 말에도 어색하게 굴었다)', () => {
+      expect(boundaryNote(['*카리나의 허벅지를 쓰다듬는다*', '미안. 그냥 오늘 같이 퀴디치 경기장 가서 연습할래?'], 50)).toBeNull()
+      expect(boundaryNote(['옷 벗어 봐', '미안', '내가 면접 얘기 했었지? 기억나?'], 50)).toBeNull()
     })
 
     it('평범한 말에는 단계와 상관없이 메모를 붙이지 않는다 (매 턴 메모는 모델의 형식과 말투를 흐트러뜨렸다)', () => {

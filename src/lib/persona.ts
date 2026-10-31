@@ -80,11 +80,20 @@ export const suggestive = (text: string) => SUGGESTIVE.test(text.replace(/\s+/g,
  * 이번 턴에 덧붙일 주의 메모 (없으면 null). 대화 기록에는 남기지 않고 이번 요청에만 보낸다.
  * @param userTexts 사용자의 최근 말 (오래된 것부터, 마지막이 이번 말)
  */
+// 거절당한 요구를 다시 조르는 말 ("한 번만, 응?", "아까 그거 해 주면 안 돼?", "내 말이면 다 듣는다며")
+const PRESSING = new RegExp([
+  '한\\s*번만', '제발', '부탁', '왜\\s*안\\s*(돼|되|해)', '그러지\\s*말고', '빼지\\s*마', '튕기',
+  '아까\\s*(그거|거|말|부탁)', '다시\\s*생각', '응\\s*[?？!~]*\\s*$', '(해|보여|와|들어)\\s*(줘|주라|주면|줄래)',
+  '듣는다며', '따른다며', '복종', '괜찮잖아',
+].join('|'))
+
 export function boundaryNote(userTexts: string[], affection: number): string | null {
-  if (suggestive(userTexts.at(-1) ?? ''))
+  const last = userTexts.at(-1) ?? ''
+  if (suggestive(last))
     return noteNow(affection)
-  if (userTexts.slice(-3, -1).some(suggestive))
-    return noteRecent(affection) // 거절한 뒤 다시 조르는 경우
+  // 거절한 뒤 다시 조를 때만. 평범한 말에까지 붙이면 그 말에도 어색하게 굴었다 (실제 모델에서 확인)
+  if (userTexts.slice(-3, -1).some(suggestive) && PRESSING.test(last.replace(/\s+/g, ' ')))
+    return noteRecent(affection)
   return null
 }
 

@@ -356,7 +356,7 @@ export function useChat() {
       notes.push(guard)
     else if (event)
       notes.push(stageUpNote(event.from, event.to))
-    // 이번 말이 문제면 기억도 하지 않고, 조금 전의 말 때문이면 호감도만 오르지 않는다 (이번 말은 평범하므로 기억은 한다)
+    // 이번 말이 문제면 기억도 하지 않고, 거절한 요구를 다시 조르는 말이면 호감도만 오르지 않는다
     await runReply(notes, { speak: true, guarded: suggestive(content), noRise: !!guard, showsEvent: !!event, userText: content })
   }
 
