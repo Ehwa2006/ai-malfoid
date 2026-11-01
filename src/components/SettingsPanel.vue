@@ -86,8 +86,8 @@ onMounted(refresh)
     <label>
       아바타
       <select v-model="settings.avatarMode">
-        <option value="2d">2D 일러스트 (표정·몸짓·장소 배경, 가벼움)</option>
-        <option value="vrm">3D 원본 모델 (Malfoy Draconia, VRM)</option>
+        <option value="vrm">원본 모델 Malfoy Draconia (VRM, 2D 일러스트처럼 그림)</option>
+        <option value="2d">2D 손그림 초상화 (가장 가벼움)</option>
         <option value="procedural">3D 간이 모델 (코드로 생성)</option>
       </select>
     </label>

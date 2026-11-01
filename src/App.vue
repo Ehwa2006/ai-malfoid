@@ -195,7 +195,13 @@ watch(() => messages.value.map(m => m.text.length).join() + choices.value.length
         :speaking="speaking"
         :mouth-level="mouthLevel"
         :model-url="modelUrl"
+        :scene="scene"
+        :affection="affection"
+        :reaction="reaction"
+        :thinking="thinking"
+        interactive
         @error="error = $event"
+        @touch="onPortraitTouch"
       />
       <KarinaPortrait
         v-else
@@ -469,7 +475,8 @@ h1 { margin: 8px 0 0; font-size: 1.3rem; letter-spacing: 0.04em; }
     max-height: 45vh;
   }
   .stage :deep(.portrait) { max-width: min(170px, 28vh); }
-  .stage :deep(.avatar3d) { max-width: 120px; }
+  .stage :deep(.card) { max-width: min(150px, 23vh); }
+  .credit { font-size: 0.6rem; }
   h1, .sub { display: none; }
   .messages, .composer, .choices { padding-left: 16px; padding-right: 16px; }
   .tray { left: 16px; right: 16px; }
