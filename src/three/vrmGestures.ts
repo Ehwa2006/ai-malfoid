@@ -66,7 +66,7 @@ export const POSES_3D: Record<GestureId, ArmPose3D> = {
     right: { anchor: 'chest', at: [-0.012, 0.06, 0.18], pole: [-1, -1, 0], hand: [0, -0.8, -0.4], fingers: 'soft' },
   },
   wave: {
-    left: { anchor: 'head', at: [0.155, -0.07, 0.07], pole: [1, -1, -0.2], hand: [0, 0, 1.4], fingers: 'open' },
+    left: { anchor: 'head', at: [0.11, -0.04, 0.1], pole: [1, -1, -0.2], hand: [0, 0, 0.7], fingers: 'open' },
   },
   chin: {
     left: { anchor: 'head', at: [0.02, -0.15, 0.09], pole: [0.6, -1, 0.3], hand: [0, 0.5, 1.4], fingers: 'point' },
