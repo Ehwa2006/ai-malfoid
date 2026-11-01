@@ -5,8 +5,8 @@ import type { Scene } from '../lib/scenes'
 import type { Expression } from './expressions'
 
 export type HandShape = 'hidden' | 'tips' | 'open' | 'hold' | 'point'
-export type Prop = 'fanOpen' | 'fanClosed' | 'teacup' | 'bouquet' | 'giftbox' | null
-export type Effect = 'steam' | 'sweat' | 'anger' | 'sparkle' | 'hearts' | 'tear' | 'gloom' | 'exclaim' | 'ohoho' | 'hmph' | 'think' | 'pat' | 'poke' | 'flowers'
+export type Prop = 'fanOpen' | 'fanClosed' | 'teacup' | 'bouquet' | 'giftbox' | 'parasol' | 'broom' | null
+export type Effect = 'steam' | 'sweat' | 'anger' | 'sparkle' | 'hearts' | 'tear' | 'gloom' | 'exclaim' | 'ohoho' | 'hmph' | 'think' | 'pat' | 'poke' | 'flowers' | 'yawn'
 
 export interface ArmPose {
   /** 손목 (화면 좌표, viewBox 300×390) */
@@ -164,6 +164,30 @@ export const GESTURES = {
     gaze: { x: 0, y: 0.6 },
     effects: ['sparkle'],
   },
+  // 늦은 밤: 소매로 입을 가리고 하품
+  yawn: {
+    left: IDLE_L,
+    right: { x: 158, y: 198, ex: 208, ey: 312, hand: 'tips', twist: -30 },
+    head: { pitch: -0.25, roll: -7 },
+    face: { closed: 'happy', mouth: 'o', blush: 0.3 },
+    effects: ['yawn', 'tear'],
+  },
+  // 정원: 레이스 양산을 어깨에 걸친다
+  parasol: {
+    left: IDLE_L,
+    right: { x: 196, y: 300, ex: 236, ey: 344, hand: 'hold', twist: 80 },
+    prop: 'parasol',
+    head: { roll: 5, yaw: -0.08 },
+    face: { smile: 0.3 },
+  },
+  // 퀴디치 경기장: 빗자루를 세워 들고 으스댄다
+  broom: {
+    left: IDLE_L,
+    right: { x: 236, y: 366, ex: 252, ey: 334, hand: 'hold', twist: 100 },
+    prop: 'broom',
+    head: { yaw: 0.12, pitch: -0.15, roll: 3 },
+    effects: ['sparkle'],
+  },
 } satisfies Record<string, Omit<Gesture, 'id'>>
 
 export type GestureId = keyof typeof GESTURES
@@ -186,9 +210,18 @@ const BY_EMOTION: Record<Emotion, [GestureId, number][]> = {
 /** 장소에 어울리지 않는 몸짓 (찻잔은 실내에서만) */
 const NEEDS_TEA: Scene[] = ['manor', 'tearoom', 'library', 'garden']
 
+/** 장소에서만 하는 몸짓 (기분이 괜찮을 때) */
+const SCENE_GESTURE: Partial<Record<Scene, GestureId>> = { garden: 'parasol', quidditch: 'broom' }
+const RELAXED: Emotion[] = ['neutral', 'smirk', 'happy']
+
+function optionsFor(emotion: Emotion, scene: Scene): [GestureId, number][] {
+  const extra = SCENE_GESTURE[scene]
+  return extra && RELAXED.includes(emotion) ? [...BY_EMOTION[emotion], [extra, 2]] : BY_EMOTION[emotion]
+}
+
 /** 이번 감정에 맞는 몸짓을 하나 고른다. 방금 한 몸짓은 피한다 */
 export function pickGesture(emotion: Emotion, scene: Scene, last: GestureId | null, rand: () => number): GestureId {
-  const options = BY_EMOTION[emotion].filter(([id]) => id !== last && (id !== 'teacup' || NEEDS_TEA.includes(scene)))
+  const options = optionsFor(emotion, scene).filter(([id]) => id !== last && (id !== 'teacup' || NEEDS_TEA.includes(scene)))
   const pool = options.length ? options : BY_EMOTION[emotion]
   const total = pool.reduce((sum, [, w]) => sum + w, 0)
   let r = rand() * total
@@ -211,8 +244,13 @@ const HABITS: Record<Emotion, GestureId[]> = {
   surprised: ['coverMouth'],
 }
 
-export function pickHabit(emotion: Emotion, scene: Scene, current: GestureId, rand: () => number): GestureId | null {
-  const options = HABITS[emotion].filter(id => id !== current && (id !== 'teacup' || NEEDS_TEA.includes(scene)))
+export function pickHabit(emotion: Emotion, scene: Scene, current: GestureId, rand: () => number, sleepy = false): GestureId | null {
+  // 늦은 밤에는 하품이 잦다
+  if (sleepy && current !== 'yawn' && rand() < 0.5)
+    return 'yawn'
+  const extra = SCENE_GESTURE[scene]
+  const pool = extra && RELAXED.includes(emotion) ? [...HABITS[emotion], extra] : HABITS[emotion]
+  const options = pool.filter(id => id !== current && (id !== 'teacup' || NEEDS_TEA.includes(scene)))
   return options.length ? options[Math.floor(rand() * options.length)] : null
 }
 

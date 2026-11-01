@@ -3,7 +3,8 @@ import { EMOTIONS } from '../lib/markers'
 import { SCENES } from '../lib/scenes'
 import { GIFTS, TOUCHES } from '../lib/interactions'
 import { EXPRESSIONS, blushFor } from './expressions'
-import { EMOTION_EFFECTS, GESTURES, type GestureId, gesture, pickGesture, reactionFor } from './gestures'
+import { EMOTION_EFFECTS, GESTURES, type GestureId, gesture, pickGesture, pickHabit, reactionFor } from './gestures'
+import { lookFor } from './season'
 import { blinkCurve, nextBlink, seeded, Spring } from './motion'
 import { fanOpenPaths, handPaths, mouthPaths, ringlet, sleeve } from './paint'
 
@@ -76,6 +77,25 @@ describe('몸짓', () => {
     expect(seen).toContain('fanLaugh')
   })
 
+  it('정원에서는 양산, 경기장에서는 빗자루를 들기도 한다 (기분이 괜찮을 때만)', () => {
+    const rand = seeded(21)
+    const garden = new Set(Array.from({ length: 60 }, () => pickGesture('happy', 'garden', null, rand)))
+    expect(garden).toContain('parasol')
+    const pitch = new Set(Array.from({ length: 60 }, () => pickGesture('smirk', 'quidditch', null, rand)))
+    expect(pitch).toContain('broom')
+    for (let i = 0; i < 40; i++)
+      expect(pickGesture('sad', 'garden', null, rand)).not.toBe('parasol')
+  })
+
+  it('조용할 때의 버릇: 늦은 밤에는 하품이 잦다', () => {
+    const rand = seeded(4)
+    const night = Array.from({ length: 40 }, () => pickHabit('neutral', 'manor', 'idle', rand, true))
+    expect(night.filter(h => h === 'yawn').length).toBeGreaterThan(10)
+    const day = Array.from({ length: 40 }, () => pickHabit('neutral', 'manor', 'idle', rand, false))
+    expect(day).not.toContain('yawn')
+    expect(pickHabit('sad', 'manor', 'clutch', rand)).toBeNull()
+  })
+
   it('찻잔은 실내에서만 든다', () => {
     const rand = seeded(9)
     for (let i = 0; i < 60; i++)
@@ -100,6 +120,23 @@ describe('몸짓', () => {
     expect(SCENES.length).toBeGreaterThan(0)
     // 호감도가 높을수록 볼이 조금 더 붉다
     expect(blushFor(EXPRESSIONS.neutral, 95)).toBeGreaterThan(blushFor(EXPRESSIONS.neutral, 30))
+  })
+})
+
+describe('계절·시간 차림새', () => {
+  it('할로윈 무렵에는 마녀 모자, 크리스마스 무렵에는 호랑가시', () => {
+    expect(lookFor(new Date(2026, 9, 31, 20), 'manor').witchHat).toBe(true)
+    expect(lookFor(new Date(2026, 10, 1, 20), 'manor').witchHat).toBe(false)
+    expect(lookFor(new Date(2026, 11, 24, 20), 'manor').holly).toBe(true)
+    expect(lookFor(new Date(2026, 6, 1, 12), 'manor')).toEqual({ witchHat: false, holly: false, scarf: false, snow: false, sleepy: false })
+  })
+
+  it('겨울이나 눈 오는 호그스미드에서는 목도리, 늦은 밤에는 졸리다', () => {
+    expect(lookFor(new Date(2026, 0, 10, 12), 'garden').scarf).toBe(true)
+    expect(lookFor(new Date(2026, 6, 10, 12), 'hogsmeade')).toMatchObject({ scarf: true, snow: true })
+    expect(lookFor(new Date(2026, 6, 10, 23, 30), 'manor').sleepy).toBe(true)
+    expect(lookFor(new Date(2026, 6, 10, 4, 59), 'manor').sleepy).toBe(true)
+    expect(lookFor(new Date(2026, 6, 10, 5, 0), 'manor').sleepy).toBe(false)
   })
 })
 

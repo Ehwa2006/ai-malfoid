@@ -9,6 +9,7 @@ import type { Scene } from '../../lib/scenes'
 import { blushFor, EXPRESSIONS, type MouthShape } from '../../avatar2d/expressions'
 import { EMOTION_EFFECTS, type Effect, gesture, type GestureId, pickGesture, pickHabit, type Prop, reactionFor } from '../../avatar2d/gestures'
 import { blinkCurve, nextBlink, seeded, Spring } from '../../avatar2d/motion'
+import { lookFor } from '../../avatar2d/season'
 import { backHair, bangClumps, fanClosedPath, fanOpenPaths, handPaths, mouthPaths, ringlet, sleeve } from '../../avatar2d/paint'
 import SceneBackdrop from './SceneBackdrop.vue'
 
@@ -29,11 +30,18 @@ const props = withDefaults(defineProps<{
   still?: boolean
   /** 머리·볼을 눌러 상호작용할 수 있다 */
   interactive?: boolean
+  /** 미리보기용: 날짜·시간 (계절 차림새, 늦은 밤) */
+  now?: Date
 }>(), { scene: 'manor', affection: 50, reaction: null, interactive: false })
 
 const emit = defineEmits<{ touch: [id: 'pat' | 'poke'] }>()
 
 const rand = props.still ? seeded(7) : Math.random
+
+// 날짜·시간에 따른 차림새 (1분마다 다시 본다)
+const clock = ref(new Date())
+let clockTimer = 0
+const look = computed(() => lookFor(props.now ?? clock.value, props.scene))
 /** 한 화면에 여러 개 그려도(미리보기) 눈 모양 클립이 섞이지 않게 */
 const uid = `kp${Math.random().toString(36).slice(2, 7)}`
 
@@ -65,7 +73,7 @@ function habits(t: number) {
     habitAt = t + 14 + rand() * 14
   }
   else if (!habitUntil && t > habitAt) {
-    const habit = pickHabit(props.emotion, props.scene, gestureId.value, rand)
+    const habit = pickHabit(props.emotion, props.scene, gestureId.value, rand, look.value.sleepy)
     if (habit) {
       gestureId.value = habit
       habitUntil = t + 3.5 + rand() * 2
@@ -94,7 +102,15 @@ watch(() => props.reaction?.at, () => {
 const g = computed(() => gesture(gestureId.value))
 /** 지금 보일 감정: 행동에 막 반응하는 중이면 그 감정, 아니면 대답의 감정 */
 const mood = computed<Emotion>(() => reacting.value?.emotion ?? props.emotion)
-const expr = computed(() => ({ ...EXPRESSIONS[mood.value], ...g.value.face }))
+const expr = computed(() => {
+  const e = { ...EXPRESSIONS[mood.value], ...g.value.face }
+  // 늦은 밤에는 평소 눈이 조금 졸리다
+  if (look.value.sleepy && mood.value === 'neutral')
+    e.eyeOpen *= 0.8
+  return e
+})
+/** 호감도가 아주 높을 때 기쁘거나 설레면 눈 속 빛이 하트가 된다 */
+const heartEyes = computed(() => props.affection >= 90 && (mood.value === 'happy' || mood.value === 'flustered'))
 const prop = computed<Prop>(() => reacting.value?.prop ?? g.value.prop ?? null)
 const effects = computed(() => {
   const set = new Set<Effect>([...EMOTION_EFFECTS[mood.value], ...(g.value.effects ?? []), ...(reacting.value?.effects ?? [])])
@@ -270,9 +286,11 @@ onMounted(() => {
   }
   window.addEventListener('pointermove', onPointer, { passive: true })
   raf = requestAnimationFrame(loop)
+  clockTimer = window.setInterval(() => { clock.value = new Date() }, 60_000)
 })
 onBeforeUnmount(() => {
   cancelAnimationFrame(raf)
+  clearInterval(clockTimer)
   window.removeEventListener('pointermove', onPointer)
 })
 
@@ -362,6 +380,13 @@ const fanAim = computed(() => {
   const pivot = armR.value.hand
   const target = id === 'fanPoint' ? { x: pivot.x + 30, y: pivot.y - 60 } : { x: 146, y: 168 }
   return { pivot, angle: Math.atan2(target.y - pivot.y, target.x - pivot.x) }
+})
+/** 양산: 손에서 머리 위 오른쪽으로 비스듬히 */
+const parasol = computed(() => {
+  const hand = armR.value.hand
+  // 어깨에 걸쳐 머리 옆 뒤로 기울인다 (머리 위로 세우면 그림 밖으로 나간다)
+  const top = { x: hand.x + 70, y: hand.y - 236 }
+  return { hand, top, shaft: `M${num(hand.x)} ${num(hand.y + 14)} L${num(top.x)} ${num(top.y)}`, front: `M${num(hand.x)} ${num(hand.y + 14)} L${num(hand.x + (top.x - hand.x) * 0.22)} ${num(hand.y + (top.y - hand.y) * 0.22)}` }
 })
 const fanOpen = computed(() => fanOpenPaths(fanAim.value.pivot, fanAim.value.angle, Math.max(0.05, r.fan)))
 const fanClosed = computed(() => fanClosedPath(fanAim.value.pivot, fanAim.value.angle))
@@ -482,6 +507,19 @@ function touch(id: 'pat' | 'poke') {
       <!-- 땅에 드리운 그림자 -->
       <ellipse cx="150" cy="392" rx="120" ry="18" fill="url(#kp-under)" />
 
+      <!-- 양산 (머리 뒤) -->
+      <g v-if="prop === 'parasol'" class="prop-parasol">
+        <path :d="parasol.shaft" stroke="#3b2a1c" stroke-width="2.6" stroke-linecap="round" />
+        <g :transform="`translate(${num(parasol.top.x)} ${num(parasol.top.y)}) rotate(26)`">
+          <path d="M-96 34 C-80 -14 80 -14 96 34 Z" fill="#fbf8f1" opacity="0.95" />
+          <path d="M-96 34 C-80 -14 80 -14 96 34" fill="none" stroke="#d9d1c2" stroke-width="1" />
+          <path d="M0 -4 L-96 34 M0 -4 L-48 32 M0 -4 L0 30 M0 -4 L48 32 M0 -4 L96 34" stroke="#d7cfbf" stroke-width="0.9" />
+          <path d="M-96 34 Q-72 46 -48 32 Q-24 44 0 30 Q24 44 48 32 Q72 46 96 34" fill="#fbf8f1" stroke="#1f5a3d" stroke-width="2" />
+          <path d="M-90 40 Q-72 50 -48 38 Q-24 50 0 36 Q24 50 48 38 Q72 50 90 40" fill="none" stroke="#d9d1c2" stroke-width="1" stroke-dasharray="1.6 2.4" />
+          <circle cy="-6" r="3" fill="url(#kp-silver)" />
+        </g>
+      </g>
+
       <!-- 뒷머리 -->
       <g :transform="headT">
         <g :transform="backT">
@@ -529,6 +567,14 @@ function touch(id: 'pat' | 'poke') {
         <ellipse cx="150" cy="240" rx="6.2" ry="7.2" fill="url(#kp-emerald)" />
         <ellipse cx="147.8" cy="236.6" rx="1.8" ry="2.4" fill="#fff" opacity="0.8" />
         <path d="M143 247 Q150 254 157 247" stroke="url(#kp-silver)" stroke-width="1.4" fill="none" />
+        <!-- 겨울: 초록·은색 줄무늬 목도리 -->
+        <g v-if="look.scarf" class="scarf">
+          <path d="M126 210 C126 236 174 236 174 210 L178 226 C178 250 122 250 122 226 Z" fill="#1f5a3d" stroke="#0e2a1d" stroke-width="0.8" />
+          <path d="M124 220 C130 238 170 238 176 220" stroke="#c9d2d6" stroke-width="3" fill="none" />
+          <path d="M132 236 C128 262 124 290 122 316 L144 318 C144 292 146 264 150 240 Z" fill="#1f5a3d" stroke="#0e2a1d" stroke-width="0.8" />
+          <path d="M129 258 L148 260 M126 282 L146 284 M124 304 L145 306" stroke="#c9d2d6" stroke-width="3.4" />
+          <path d="M123 316 l2 7 M128 317 l1 7 M133 317 l0 7 M138 318 l-1 7 M143 318 l-2 6" stroke="#1f5a3d" stroke-width="1.6" stroke-linecap="round" />
+        </g>
       </g>
 
       <!-- 머리 -->
@@ -580,7 +626,8 @@ function touch(id: 'pat' | 'poke') {
                   <ellipse :cx="num(e.ix)" :cy="num(e.iy + 6.4)" rx="6.6" ry="3" fill="#dce9f1" opacity="0.5" />
                   <!-- 위 눈꺼풀 그림자 -->
                   <path :d="e.white" fill="none" stroke="#6f7788" stroke-width="5" opacity="0.28" :transform="`translate(0 -1.6)`" />
-                  <ellipse :cx="num(e.ix - 4)" :cy="num(e.iy - 4.6)" rx="3.4" ry="2.9" fill="#fff" />
+                  <path v-if="heartEyes" :d="`M${num(e.ix - 4)} ${num(e.iy - 2.4)} c-3.6 -2.6 -4.2 -6.4 -1.6 -6.8 c1.2 -0.2 1.6 0.8 1.6 1.4 c0 -0.6 0.4 -1.6 1.6 -1.4 c2.6 0.4 2 4.2 -1.6 6.8 Z`" fill="#ffd6e4" stroke="#fff" stroke-width="0.8" />
+                  <ellipse v-else :cx="num(e.ix - 4)" :cy="num(e.iy - 4.6)" rx="3.4" ry="2.9" fill="#fff" />
                   <circle :cx="num(e.ix + 4.2)" :cy="num(e.iy + 3.6)" r="1.4" fill="#fff" opacity="0.9" />
                   <path v-if="expr.sparkle" :d="`M${num(e.ix + 3)} ${num(e.iy - 6.4)} l1.1 2.6 2.6 1.1 -2.6 1.1 -1.1 2.6 -1.1 -2.6 -2.6 -1.1 2.6 -1.1 Z`" fill="#fff" />
                 </g>
@@ -646,12 +693,30 @@ function touch(id: 'pat' | 'poke') {
           <g stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" opacity="0.75">
             <path d="M100 55 l8 -3" /><path d="M118 49 l10 -2" /><path d="M172 47 l10 2" /><path d="M192 51 l8 3" />
           </g>
+          <!-- 머리에 내려앉은 눈 -->
+          <g v-if="look.snow" fill="#ffffff" opacity="0.9">
+            <circle cx="104" cy="44" r="2.2" /><circle cx="128" cy="30" r="1.8" /><circle cx="160" cy="26" r="2.4" /><circle cx="188" cy="34" r="1.6" /><circle cx="212" cy="50" r="2" /><circle cx="84" cy="70" r="1.6" />
+          </g>
+          <!-- 할로윈: 리본 대신 작은 마녀 모자 -->
+          <g v-if="look.witchHat" transform="translate(202 44) rotate(16)">
+            <ellipse cx="0" cy="6" rx="30" ry="7" fill="#151a17" stroke="#2b332e" stroke-width="0.8" />
+            <path d="M-16 5 C-12 -12 -4 -26 8 -40 C10 -30 14 -20 16 5 Z" fill="#1a201c" />
+            <path d="M8 -40 C14 -42 20 -38 22 -32" stroke="#1a201c" stroke-width="4" stroke-linecap="round" fill="none" />
+            <path d="M-15 0 C-6 3 8 3 16 0 L16 -5 C8 -2 -6 -2 -14 -5 Z" fill="#1f5a3d" />
+            <rect x="-2" y="-5" width="6" height="6" rx="1" fill="none" stroke="url(#kp-silver)" stroke-width="1.4" />
+          </g>
           <!-- 리본 장식 -->
-          <g transform="translate(208 54) rotate(18)">
+          <g v-else transform="translate(208 54) rotate(18)">
             <path d="M0 0 C-14 -12 -24 -6 -20 4 C-17 10 -8 6 0 0 Z" fill="#163d2b" stroke="#0b2016" stroke-width="0.8" />
             <path d="M0 0 C14 -12 24 -6 20 4 C17 10 8 6 0 0 Z" fill="#1d4d36" stroke="#0b2016" stroke-width="0.8" />
             <path d="M-2 2 L-8 20 L-3 17 L0 22 L2 3 Z" fill="#163d2b" />
             <circle r="3.6" fill="url(#kp-emerald)" stroke="url(#kp-silver)" stroke-width="1" />
+            <!-- 크리스마스: 호랑가시 -->
+            <g v-if="look.holly" transform="translate(-6 -10)">
+              <path d="M0 0 C-6 -6 -14 -4 -16 2 C-12 2 -10 6 -6 4 C-4 6 -2 4 0 0 Z" fill="#1f6b3a" />
+              <path d="M0 0 C6 -6 14 -4 16 2 C12 2 10 6 6 4 C4 6 2 4 0 0 Z" fill="#287a45" />
+              <circle cx="-2" cy="-2" r="2.6" fill="#c8202e" /><circle cx="2.4" cy="-3.4" r="2.4" fill="#d6303a" /><circle cx="0.6" cy="1" r="2.2" fill="#b81c28" />
+            </g>
           </g>
         </g>
 
@@ -674,6 +739,7 @@ function touch(id: 'pat' | 'poke') {
             <circle cx="-16" cy="14" r="3.4" fill="#fff" opacity="0.92" /><circle cx="-22" cy="22" r="2" fill="#fff" opacity="0.92" />
           </g>
           <text v-if="has('ohoho')" class="fx-text fx-ohoho" x="206" y="70">오~호호</text>
+          <text v-if="has('yawn')" class="fx-text fx-ohoho" x="206" y="82">하암~</text>
           <text v-if="has('hmph')" class="fx-text fx-hmph" :x="r.yaw < 0 ? 52 : 214" y="78">흥!</text>
           <g v-if="has('pat')" class="fx-pat">
             <path d="M126 4 C122 18 128 30 142 32 L176 32 C188 30 192 18 186 6 C182 0 176 2 174 8 C172 0 164 -2 160 6 C158 -2 150 -2 147 6 C144 -2 134 -2 132 8 C130 2 128 2 126 4 Z" fill="#f6dccb" stroke="#c99a84" stroke-width="1" />
@@ -685,6 +751,16 @@ function touch(id: 'pat' | 'poke') {
           </g>
         </g>
       </g>
+
+      <!-- 빗자루 (손 뒤): 비스듬히 세워 든다 -->
+      <g v-if="prop === 'broom'" class="prop-broom">
+        <path :d="`M${num(armR.hand.x + 34)} 70 L${num(armR.hand.x - 14)} 410`" stroke="#4a2f19" stroke-width="8" stroke-linecap="round" />
+        <path :d="`M${num(armR.hand.x + 32)} 74 L${num(armR.hand.x - 15)} 410`" stroke="#a87444" stroke-width="2.4" opacity="0.8" />
+        <path :d="`M${num(armR.hand.x + 34)} 70 l1 -6`" stroke="url(#kp-silver)" stroke-width="7" stroke-linecap="round" />
+        <path :d="`M${num(armR.hand.x + 6)} ${num(armR.hand.y - 22)} q-10 4 -16 -2 m16 2 q4 10 -2 16`" stroke="#2fae74" stroke-width="2.4" fill="none" stroke-linecap="round" />
+      </g>
+      <!-- 양산 손잡이 (손 앞을 지나는 부분) -->
+      <path v-if="prop === 'parasol'" :d="parasol.front" stroke="#3b2a1c" stroke-width="2.6" stroke-linecap="round" />
 
       <!-- 팔과 소품 -->
       <template v-for="side in (frontArm === 'left' ? ['right', 'left'] : ['left', 'right'])" :key="side">
