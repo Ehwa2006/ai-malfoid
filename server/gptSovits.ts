@@ -85,6 +85,37 @@ export function gsvRequest(input: string, ref: VoiceRef & { path: string }, pack
 /** 샘플링 설정 (GPT-SoVITS 기본값: top_k 15, top_p 1, temperature 1, repetition_penalty 1.35) */
 export const SAMPLING = { top_k: 15, top_p: 1, temperature: 1, repetition_penalty: 1.35 }
 
+/** WAV 길이(초). 머리글을 못 읽으면 null */
+export function wavSeconds(buf: Uint8Array): number | null {
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength)
+  const tag = (at: number) => String.fromCharCode(buf[at], buf[at + 1], buf[at + 2], buf[at + 3])
+  if (buf.length < 12 || tag(0) !== 'RIFF' || tag(8) !== 'WAVE')
+    return null
+  let byteRate = 0
+  for (let at = 12; at + 8 <= buf.length;) {
+    const id = tag(at)
+    const size = view.getUint32(at + 4, true)
+    if (id === 'fmt ')
+      byteRate = view.getUint32(at + 16, true)
+    // 스트리밍으로 만든 WAV는 data 크기가 비어 있을 수 있어 실제 남은 길이로 잰다
+    if (id === 'data')
+      return byteRate ? Math.min(size || Infinity, buf.length - at - 8) / byteRate : null
+    at += 8 + size + (size % 2)
+  }
+  return null
+}
+
+/**
+ * 끝까지 읽지 않고 멈췄는지: 글자 수에 비해 소리가 너무 짧다.
+ * 여러 문장을 한 번에 합성하면 GPT-SoVITS가 첫 문장의 물음표에서 끝내 버리는 일이 있다 (실험에서 두 번째 문장이 통째로 빠짐).
+ * 실험한 140개 음성은 앞뒤 쉼까지 쳐서 1초에 6.3음절을 넘지 않았고, 잘린 것은 9.8음절이었다.
+ * 그래서 1초에 8음절(빠르기 설정만큼 더)보다 빠르면 잘린 것으로 본다.
+ */
+export function looksTruncated(text: string, seconds: number | null, speed = 1): boolean {
+  const syllables = (text.match(/[가-힣]/g) ?? []).length
+  return seconds !== null && syllables >= 12 && syllables / Math.max(0.1, seconds) > 8 * speed
+}
+
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
   let body = ''
   for await (const chunk of req) {
@@ -162,11 +193,11 @@ export function gptSovits(options: { packFile: string, url?: string }): Plugin {
 
     const abort = new AbortController()
     res.on('close', () => abort.abort()) // 앱이 중지하면 합성도 그만둔다
-    const synth = (text: string) => fetch(`${target}/tts`, {
+    const synth = (text: string, split = 'cut0') => fetch(`${target}/tts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.any([abort.signal, AbortSignal.timeout(60_000)]),
-      body: JSON.stringify({ ...gsvRequest(input, ref, pack, speed), text }),
+      body: JSON.stringify({ ...gsvRequest(input, ref, pack, speed), text, text_split_method: split }),
     })
     try {
       const request = gsvRequest(input, ref, pack, speed)
@@ -182,10 +213,17 @@ export function gptSovits(options: { packFile: string, url?: string }): Plugin {
         // 문장 탓이면 422: 앱은 이 문장만 다른 음성으로 읽고 AI 음성을 계속 쓴다. 서버 탓이면 502
         return sendJson(res, upstream.status < 500 ? 422 : 502, { error: { message: `GPT-SoVITS ${upstream.status}: ${detail}` } })
       }
+      let audio = new Uint8Array(await upstream.arrayBuffer())
+      // 중간에 멈춘 소리면 문장부호마다 나눠서(예전 방식) 한 번 더 읽는다. 억양은 조금 끊겨도 빠뜨리지는 않는다
+      if (looksTruncated(request.text, wavSeconds(audio), speed)) {
+        const again = await synth(request.text, 'cut5')
+        if (again.ok)
+          audio = new Uint8Array(await again.arrayBuffer())
+      }
       res.statusCode = 200
       res.setHeader('Content-Type', 'audio/wav')
       res.setHeader('Cache-Control', 'no-store')
-      res.end(Buffer.from(await upstream.arrayBuffer()))
+      res.end(Buffer.from(audio))
     }
     catch (e) {
       if (!abort.signal.aborted)
