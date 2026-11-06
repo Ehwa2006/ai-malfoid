@@ -18,6 +18,8 @@ export interface ChatOptions {
   /** 컨텍스트 길이 (토큰). 기본 NUM_CTX */
   numCtx?: number
   onToken: (token: string) => void
+  /** 요청에 쓸 fetch (서버에서는 응답 머리글 시간 제한이 없는 것을 넣는다) */
+  fetch?: typeof fetch
 }
 
 /** 설정 프롬프트(약 2천5백 토큰)와 대화 기록(최대 40개 남짓)이 함께 들어가는 길이 */
@@ -54,7 +56,7 @@ export function pickModel(installed: string[], current: string): string {
 
 /** /api/chat 스트리밍 호출. 응답은 줄 단위 JSON(NDJSON)으로 온다. */
 export async function streamChat(opts: ChatOptions): Promise<void> {
-  const res = await fetch(`${opts.baseUrl}/api/chat`, {
+  const res = await (opts.fetch ?? fetch)(`${opts.baseUrl}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     signal: opts.signal,

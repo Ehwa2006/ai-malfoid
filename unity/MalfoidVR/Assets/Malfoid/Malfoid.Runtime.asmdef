@@ -1,0 +1,18 @@
+{
+    "name": "Malfoid.Runtime",
+    "rootNamespace": "Malfoid",
+    "references": [
+        "Unity.InputSystem",
+        "VRM10",
+        "UniGLTF",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

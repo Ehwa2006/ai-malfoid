@@ -5,18 +5,22 @@
 //   3. AI 음성(GPT-SoVITS)을 켠다. 설치돼 있지 않으면 지금 설치할지 한 번 묻는다(윈도우).
 //      켜지는 동안은 Edge 음성으로 읽고, 준비되면 짧은 문장으로 데워 둔 뒤 카리나 목소리로 바뀐다.
 //   4. 의존성을 설치하고 개발 서버를 띄운 뒤 브라우저를 연다
+// VR(유니티 앱, unity/MalfoidVR)과 함께 쓰려면: npm run start:vr
+//   같은 와이파이의 헤드셋(Quest 단독 실행)이 접속할 수 있게 서버를 집 안 네트워크에 열고, 유니티에 넣을 주소를 알려 준다.
 // 환경 변수: OLLAMA_HOST (기본 127.0.0.1:11434), MALFOID_MODEL (기본 exaone3.5:7.8b),
 //           GPT_SOVITS_DIR (GPT-SoVITS 폴더), GPT_SOVITS_URL (기본 http://127.0.0.1:9880),
 //           MALFOID_VOICE=off (AI 음성을 켜지도 묻지도 않는다)
 import { copyFileSync, existsSync, openSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { createInterface } from 'node:readline/promises'
 import { spawn, spawnSync } from 'node:child_process'
+import { networkInterfaces } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { EXTRACTING_MARK, findGptSovits, hasV2Pro, installedAt, pythonOf } from './gpt-sovits/find.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const IS_WINDOWS = process.platform === 'win32'
+const VR = process.argv.includes('--vr')
 const MODEL = process.env.MALFOID_MODEL || 'exaone3.5:7.8b'
 const OLLAMA = ollamaOrigin(process.env.OLLAMA_HOST)
 
@@ -106,8 +110,14 @@ if (!existsSync(installed) || statSync(join(ROOT, 'package-lock.json')).mtimeMs 
   run('npm', ['install'])
 }
 
-say('앱을 띄워요. 브라우저가 열리지 않으면 아래 "Local:" 주소를 열어 주세요. 끝내려면 Ctrl+C')
-const vite = spawn('npx', ['vite', '--open'], {
+if (VR) {
+  // 헤드셋이 이 컴퓨터에 접속할 주소 (같은 와이파이). PC VR(Link·SteamVR)이면 127.0.0.1 그대로 된다
+  const lan = Object.values(networkInterfaces()).flat().filter(a => a && a.family === 'IPv4' && !a.internal).map(a => a.address)
+  say('VR 모드: 같은 네트워크의 헤드셋이 접속할 수 있게 서버를 열어요 (집·개인 네트워크에서만 쓰세요)')
+  say(`유니티의 Malfoid App ▸ Server Url: PC VR이면 http://127.0.0.1:5173${lan.length ? `, Quest 단독이면 ${lan.map(a => `http://${a}:5173`).join(' 또는 ')}` : ''}`)
+}
+say(VR ? 'VR용 서버를 띄워요. 끝내려면 Ctrl+C' : '앱을 띄워요. 브라우저가 열리지 않으면 아래 "Local:" 주소를 열어 주세요. 끝내려면 Ctrl+C')
+const vite = spawn('npx', VR ? ['vite', '--host', '0.0.0.0', '--port', '5173', '--strictPort'] : ['vite', '--open'], {
   cwd: ROOT,
   stdio: 'inherit',
   shell: IS_WINDOWS,

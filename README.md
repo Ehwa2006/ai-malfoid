@@ -17,6 +17,7 @@
 - 💘 **데이팅 시뮬레이션**: 호감도(0~100)에 따라 적대 → 경계 → 호기심 → 호감 → 연인 → 집착(90 이상) 단계로 바뀌고, 단계마다 말포이의 태도 지시가 시스템 프롬프트에 들어갑니다.
   - 상대를 얄밉게 도발하며 시비를 걸지만, 말싸움이나 내기에서 당당하게 이겨 콧대를 꺾어 주면 분해하면서도 속으로 기뻐합니다(호감도가 크게 오름).
   - 집착 단계에서는 질투와 독점욕을 드러내고, 상대의 말이라면 자존심을 내려놓고 따릅니다. 위험한 집착(위협·자해)은 하지 않으며, 어느 단계에서도 PG-13을 넘지 않습니다.
+- 🥽 **VR로 만나기 (유니티)**: `unity/MalfoidVR` — 말포이 저택 응접실에서 카리나와 마주 서서 이야기합니다. 바라보면 눈을 맞추고, 머리를 쓰다듬거나 볼을 콕 찌르거나 손을 내밀고, 탁자의 선물을 집어 건넬 수 있습니다. 대화·호감도·안전 규칙은 이 서버의 같은 코드를 씁니다 ([VR (유니티)](#vr-유니티)).
 - 🎨 **원래 모델을 2D 일러스트처럼 (기본)**: Malfoy Draconia VRM 모델을 그대로 쓰되, 애니메이션 그림처럼 보이게 다듬었습니다.
   - 또렷한 2단 셀 셰이딩, 화면 기준 외곽선(선화), 장소 색의 림 라이트, 머리카락의 띠 모양 광택, 좁은 화각(원근감을 줄여 납작하게)으로 그립니다.
   - 모델 뒤에 장소 배경 그림을 깔고, 종이 결과 가장자리 그늘을 덧씌웁니다.
@@ -211,6 +212,20 @@ scripts/convert-draconia/convert.sh "Harry Potter Series - Malfoy Draconia Femal
   VRM이면 표준 표정 이름으로 감정이 연결되고, 일반 `.glb`는 표시만 됩니다.
 - **3D 간이 모델**: `src/three/karina.ts`가 코드로 만드는 가벼운 셀 셰이딩 모델입니다. VRM을 불러오지 못할 때도 이 모델로 바뀝니다. `.glb`로 내보낼 수 있습니다.
 
+## VR (유니티)
+
+`unity/MalfoidVR`는 VR 헤드셋(Quest·Index·Vive, OpenXR)으로 카리나를 만나는 유니티 6 프로젝트입니다. 자세한 사용법은 [unity/MalfoidVR/README.md](unity/MalfoidVR/README.md).
+
+```bash
+npm start          # PC VR (Quest Link·SteamVR): 유니티가 http://127.0.0.1:5173 에 붙는다
+npm run start:vr   # Quest 단독 실행: 같은 와이파이의 헤드셋이 접속하도록 서버를 집 안 네트워크에 연다
+```
+
+- 유니티는 연출만 합니다. 말과 행동을 `POST /vr/say`로 보내면 서버(`server/vrSession.ts`)가 웹 앱과 같은 흐름(설정 프롬프트, 거절 메모, 호감도, 기억, 장소, 단계 상승 이벤트)으로 대답을 받아 줄 단위 JSON으로 흘려보냅니다: 바로 하는 반응 → 표정 → 몸짓 → 자막·읽을 문장 → 속마음 → 선택지 → 호감도.
+- 몸짓·표정·쉬는 자세·소품 위치는 웹 앱의 표에서 C#으로 만들어 씁니다: `npm run unity:data` (표를 고치고 다시 만들지 않으면 `npm test`가 실패합니다).
+- VR에서는 손이 먼저 닿아 버리므로, 아직 허락하지 않은 손길(호감도가 모자란 쓰다듬기·안기)도 보내고 카리나가 쳐내거나 피하게 합니다(호감도는 오르지 않음).
+- VR 대화는 웹 앱과 따로 `.malfoid/vr-session.json`에 저장됩니다.
+
 ## 구조
 
 ```
@@ -283,6 +298,7 @@ server/edgeTts.ts          # 개발 서버에 붙는 Edge 신경망 음성 엔�
 ```bash
 npm test          # 답변 파서, 마커 파서, 호감도, 페르소나 단위 테스트
 npm run build     # 타입 체크 + 프로덕션 빌드
+npm run unity:data  # 웹 앱의 몸짓·표정 표 → 유니티 C# (unity/MalfoidVR/Assets/Malfoid/Scripts/Generated/PoseData.cs)
 ```
 
 > 3D 모델: "Harry Potter - Malfoy Draconia (3D Model)" by HiGuys920, CC BY 4.0 (https://sketchfab.com/3d-models/harry-potter-malfoy-draconia-3d-model-dl-49a0f6d87e7b4079a6a6a5b15768e627). VRM 1.0으로 변환하면서 표정·스프링 본·재질을 바꿨습니다 (`public/models/CREDITS.md`).

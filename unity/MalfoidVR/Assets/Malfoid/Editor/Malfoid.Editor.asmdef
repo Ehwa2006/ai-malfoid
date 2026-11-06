@@ -1,0 +1,25 @@
+{
+    "name": "Malfoid.Editor",
+    "rootNamespace": "Malfoid.Editor",
+    "references": [
+        "Malfoid.Runtime",
+        "VRM10",
+        "VRM10.Editor",
+        "UniGLTF",
+        "Unity.InputSystem",
+        "Unity.XR.Management",
+        "Unity.XR.Management.Editor",
+        "Unity.XR.OpenXR",
+        "Unity.XR.OpenXR.Editor",
+        "Unity.XR.OpenXR.Features.MetaQuestSupport",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

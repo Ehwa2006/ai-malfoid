@@ -32,7 +32,7 @@ import { createProps, disposeObject, holly, scarf, witchHat } from './props3d'
 import { mouthOpen, type AvatarController, type Direction } from './types'
 
 /** 감정 → VRM 표준 표정 가중치 */
-const EXPRESSIONS: Record<Emotion, Partial<Record<string, number>>> = {
+export const EXPRESSIONS: Record<Emotion, Partial<Record<string, number>>> = {
   neutral: {},
   smirk: { relaxed: 0.75, happy: 0.1 },
   annoyed: { angry: 0.8 },
@@ -44,7 +44,7 @@ const EXPRESSIONS: Record<Emotion, Partial<Record<string, number>>> = {
 const FACE_EXPRESSIONS = ['happy', 'angry', 'sad', 'relaxed', 'surprised', 'oh']
 
 /** 원본 모델에 없는 볼 홍조. 감정별 세기 */
-const BLUSH: Record<Emotion, number> = {
+export const BLUSH: Record<Emotion, number> = {
   neutral: 0,
   smirk: 0,
   annoyed: 0.15,
@@ -66,7 +66,7 @@ export const SCENE_RIM: Record<Scene, string> = {
 }
 
 /** T포즈 → 자연스럽게 팔을 내린 자세 (정규화된 본 기준 회전, 라디안) */
-const REST_POSE: Partial<Record<VRMHumanBoneName, [number, number, number]>> = {
+export const REST_POSE: Partial<Record<VRMHumanBoneName, [number, number, number]>> = {
   leftUpperArm: [0, 0, -1.22],
   rightUpperArm: [0, 0, 1.22],
   leftLowerArm: [0, -0.35, 0],
@@ -88,7 +88,7 @@ const SEGMENTS: Record<(typeof FINGER_NAMES)[number], string[]> = {
  * 소품 자리: 손(캐릭터의 왼손, 두 손으로 드는 것은 두 손 사이)에서 [x, y, z]만큼, 세계 기준 회전 [x, y, z].
  * 손의 회전을 따르지 않고 늘 같은 방향으로 든다 (부채는 보는 사람을 향하고, 찻잔은 똑바로 선다).
  */
-const PROP_POSE: Record<Exclude<Prop, null>, { at: [number, number, number], rot: [number, number, number], both?: boolean }> = {
+export const PROP_POSE: Record<Exclude<Prop, null>, { at: [number, number, number], rot: [number, number, number], both?: boolean }> = {
   fanOpen: { at: [-0.01, 0.045, 0.05], rot: [0, 0, 0.55] },
   fanClosed: { at: [0.0, 0.02, 0.03], rot: [0, 0, -0.5] },
   teacup: { at: [-0.03, 0.03, 0.03], rot: [0, 0, 0], both: true },

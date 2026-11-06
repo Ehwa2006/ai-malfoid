@@ -1,0 +1,18 @@
+# 유니티가 만드는 것들
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+*.csproj
+*.sln
+*.slnx
+.vs/
+.idea/
+# 모델은 메뉴(Malfoid ▸ 1. 모델 가져오기)가 저장소의 public/models에서 복사해 온다
+/Assets/Malfoid/Models/*
+!/Assets/Malfoid/Models/README.md
+!/Assets/Malfoid/Models/README.md.meta

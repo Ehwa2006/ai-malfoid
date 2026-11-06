@@ -208,11 +208,11 @@ const BY_EMOTION: Record<Emotion, [GestureId, number][]> = {
 }
 
 /** 장소에 어울리지 않는 몸짓 (찻잔은 실내에서만) */
-const NEEDS_TEA: Scene[] = ['manor', 'tearoom', 'library', 'garden']
+export const NEEDS_TEA: Scene[] = ['manor', 'tearoom', 'library', 'garden']
 
 /** 장소에서만 하는 몸짓 (기분이 괜찮을 때) */
-const SCENE_GESTURE: Partial<Record<Scene, GestureId>> = { garden: 'parasol', quidditch: 'broom' }
-const RELAXED: Emotion[] = ['neutral', 'smirk', 'happy']
+export const SCENE_GESTURE: Partial<Record<Scene, GestureId>> = { garden: 'parasol', quidditch: 'broom' }
+export const RELAXED: Emotion[] = ['neutral', 'smirk', 'happy']
 
 function optionsFor(emotion: Emotion, scene: Scene): [GestureId, number][] {
   const extra = SCENE_GESTURE[scene]
@@ -234,7 +234,7 @@ export function pickGesture(emotion: Emotion, scene: Scene, last: GestureId | nu
 }
 
 /** 한동안 말이 없을 때 혼자 하는 버릇 (감정별). 몇 초 하다가 원래 몸짓으로 돌아온다 */
-const HABITS: Record<Emotion, GestureId[]> = {
+export const HABITS: Record<Emotion, GestureId[]> = {
   neutral: ['hairFlip', 'chin', 'teacup'],
   smirk: ['hairFlip', 'fanLaugh', 'fanPoint'],
   annoyed: ['armsCrossed', 'fanPoint'],
