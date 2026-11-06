@@ -4,6 +4,13 @@
 
 const SENTENCE_END = /[.!?…~]+["'”’)\]]*\s+|\n+/g
 const MAX_LENGTH = 90
+/**
+ * 이보다 짧은 문장("흥.", "뭐?", "포터.")은 다음 문장과 붙여서 읽는다.
+ * 짧은 문장을 따로 합성하면 앞뒤 맥락 없이 억양이 납작해지고, 문장마다 쉼이 생겨 말이 뚝뚝 끊긴다.
+ */
+const MIN_SYLLABLES = 6
+
+const syllables = (text: string) => (text.match(/[가-힣]/g) ?? []).length
 
 function normalize(text: string): string {
   return text
@@ -25,6 +32,8 @@ export class SpeechChunker {
   /** 여는 '*' 뒤의 글자. 닫는 '*'가 오면 버리고, 안 오면(줄바꿈·답변 끝) 대사로 되돌린다 */
   private action = ''
   private pending = ''
+  /** 다음 문장과 붙여 읽으려고 잡아 둔 짧은 문장 */
+  private carry = ''
 
   /** 새로 들어온 대사 조각을 넣고, 읽을 준비가 된 문장들을 돌려준다 */
   push(text: string): string[] {
@@ -66,8 +75,15 @@ export class SpeechChunker {
     const out: string[] = []
     const emit = (s: string) => {
       const t = normalize(s)
-      if (speakable(t))
-        out.push(t)
+      if (!speakable(t))
+        return
+      const joined = this.carry ? `${this.carry} ${t}` : t
+      if (syllables(joined) < MIN_SYLLABLES && joined.length < MAX_LENGTH) {
+        this.carry = joined
+        return
+      }
+      this.carry = ''
+      out.push(joined)
     }
     let last = 0
     SENTENCE_END.lastIndex = 0
@@ -87,6 +103,9 @@ export class SpeechChunker {
     if (final) {
       emit(this.pending)
       this.pending = ''
+      if (this.carry)
+        out.push(this.carry)
+      this.carry = ''
     }
     return out
   }

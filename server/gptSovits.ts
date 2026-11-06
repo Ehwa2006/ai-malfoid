@@ -9,6 +9,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import type { Connect, Plugin } from 'vite'
+import { speakableKorean, withoutLatin } from './koreanSpeech'
 
 export const GSV_PATH = '/tts/gsv'
 const EMOTIONS = ['neutral', 'smirk', 'annoyed', 'flustered', 'happy', 'sad', 'surprised'] as const
@@ -57,6 +58,32 @@ export function pickReference(pack: VoicePack, packDir: string, emotion: unknown
   }
   throw new Error(`참고 음성 파일이 없어요: ${join(packDir, pack.refs.neutral.file)}`)
 }
+
+/**
+ * GPT-SoVITS에 보낼 합성 요청.
+ * - 대사는 소리 내어 읽기 좋게 다듬는다 (숫자·영어·물결표·말줄임표, server/koreanSpeech.ts)
+ * - 쉼표마다 자르지 않는다(cut0): 앱이 이미 문장 단위로 보내므로, 쉼표에서 잘라 따로 합성하면
+ *   쉼표마다 억양이 처음부터 다시 시작되고 0.3초씩 끊겨 말이 로봇처럼 들린다
+ * - 샘플링은 조금 보수적으로: 한국어 억양이 들쭉날쭉하거나 끝을 흐리는 일이 줄어든다 (scripts/gpt-sovits 실험 참고)
+ */
+export function gsvRequest(input: string, ref: VoiceRef & { path: string }, pack: Pick<VoicePack, 'lang'>, speed: number) {
+  return {
+    text: speakableKorean(input),
+    text_lang: 'ko',
+    ref_audio_path: ref.path,
+    prompt_text: ref.text,
+    prompt_lang: pack.lang,
+    text_split_method: 'cut0',
+    ...SAMPLING,
+    batch_size: 1,
+    speed_factor: speed,
+    media_type: 'wav',
+    streaming_mode: false,
+  }
+}
+
+/** 샘플링 설정 (GPT-SoVITS 기본값: top_k 15, top_p 1, temperature 1, repetition_penalty 1.35) */
+export const SAMPLING = { top_k: 15, top_p: 1, temperature: 1, repetition_penalty: 1.35 }
 
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
   let body = ''
@@ -135,26 +162,26 @@ export function gptSovits(options: { packFile: string, url?: string }): Plugin {
 
     const abort = new AbortController()
     res.on('close', () => abort.abort()) // 앱이 중지하면 합성도 그만둔다
+    const synth = (text: string) => fetch(`${target}/tts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.any([abort.signal, AbortSignal.timeout(60_000)]),
+      body: JSON.stringify({ ...gsvRequest(input, ref, pack, speed), text }),
+    })
     try {
-      const upstream = await fetch(`${target}/tts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.any([abort.signal, AbortSignal.timeout(60_000)]),
-        body: JSON.stringify({
-          text: input,
-          text_lang: 'ko',
-          ref_audio_path: ref.path,
-          prompt_text: ref.text,
-          prompt_lang: pack.lang,
-          text_split_method: 'cut5',
-          batch_size: 1,
-          speed_factor: speed,
-          media_type: 'wav',
-          streaming_mode: false,
-        }),
-      })
-      if (!upstream.ok)
-        return sendJson(res, 502, { error: { message: `GPT-SoVITS ${upstream.status}: ${(await upstream.text()).slice(0, 300)}` } })
+      const request = gsvRequest(input, ref, pack, speed)
+      let upstream = await synth(request.text)
+      // 400은 이 문장을 못 읽은 것(낯선 영어 낱말 등): 영어를 빼고 한 번 더 읽어 본다
+      if (upstream.status === 400) {
+        const retry = withoutLatin(input)
+        if (retry && retry !== request.text)
+          upstream = await synth(retry)
+      }
+      if (!upstream.ok) {
+        const detail = (await upstream.text()).slice(0, 300)
+        // 문장 탓이면 422: 앱은 이 문장만 다른 음성으로 읽고 AI 음성을 계속 쓴다. 서버 탓이면 502
+        return sendJson(res, upstream.status < 500 ? 422 : 502, { error: { message: `GPT-SoVITS ${upstream.status}: ${detail}` } })
+      }
       res.statusCode = 200
       res.setHeader('Content-Type', 'audio/wav')
       res.setHeader('Cache-Control', 'no-store')

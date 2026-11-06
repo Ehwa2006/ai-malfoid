@@ -107,11 +107,22 @@ export function useTts(settings: Ref<Settings>, emotion: Ref<Emotion>) {
           }
           catch (e) {
             const err = e instanceof TtsError ? e : new TtsError(String(e), 'unavailable')
-            if (err.kind === 'content' || gen !== generation)
-              return // "ㅋㅋ"처럼 이 문장만 읽을 수 없는 경우는 건너뛴다
-            // 서버에 닿지 못했으면 다음 엔진으로 같은 문장을 다시 읽고, 이후 문장도 그 엔진으로 준비한다
+            if (gen !== generation)
+              return
             const order = CHAIN[tts().provider]
             const next = order[order.indexOf(engineId) + 1]
+            if (err.kind === 'content') {
+              // AI 음성이 이 문장만 못 읽었으면(낯선 영어 등) 이 문장만 다음 음성으로 읽고, 다음 문장은 다시 AI 음성으로.
+              // 다른 엔진이 못 읽는 조각("ㅋㅋ" 등)은 건너뛴다
+              if (engineId !== 'gsv' || !next)
+                return
+              live.delete(prepared)
+              engineId = next
+              prepared = engines[next].prepare(text)
+              live.add(prepared)
+              continue
+            }
+            // 서버에 닿지 못했으면 다음 엔진으로 같은 문장을 다시 읽고, 이후 문장도 그 엔진으로 준비한다
             if (!next) {
               error.value = `음성을 재생하지 못했어요: ${err.message}`
               return

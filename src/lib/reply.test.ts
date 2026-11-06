@@ -74,7 +74,8 @@ describe('ReplyStreamParser', () => {
     it('대사 칸에 섞인 별표는 지운다 (짝이 어긋나 행동과 대사가 뒤바뀌지 않게)', () => {
       const { text } = run(['{"emotion":"smirk","affection":0,"reply":[{"kind":"say","text":"알았어.*"},{"kind":"action","text":"웃는다"},{"kind":"say","text":"가자."},{"kind":"action","text":"걸어간다"}]}'])
       expect(text).toBe('알았어. *웃는다* 가자. *걸어간다*')
-      expect(splitSpeech(text)).toEqual(['알았어.', '가자.'])
+      // 행동은 읽지 않고, 아주 짧은 두 문장은 붙여서 한 번에 읽는다
+      expect(splitSpeech(text)).toEqual(['알았어. 가자.'])
     })
 
     it('행동 안의 줄바꿈은 띄어쓰기로 바꿔서, 음성이 행동을 읽지 않는다', () => {

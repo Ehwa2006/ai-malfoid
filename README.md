@@ -119,13 +119,16 @@ EXAONE 3.5는 LG AI연구원의 비상업 라이선스 모델이라 개인·비�
 같은 목소리로 감정 7가지(평소·비웃음·짜증·당황·기쁨·슬픔·놀람)를 연기한 짧은 참고 음성이 `voices/karina/`에 들어 있고,
 [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS)(MIT)가 답변의 감정에 맞는 참고 음성을 골라 그 목소리·말투로 새 문장을 읽습니다.
 
-**설치 (Windows, 한 번만)**
+**설치 (Windows, 한 번만)**: `npm.cmd start`만 실행하면 됩니다.
+AI 음성이 없으면 처음 실행할 때 "지금 설치할까요? [Y/n]"라고 묻습니다. Enter를 누르면 아래처럼 설치한 뒤 이어서 앱을 켭니다.
+`n`을 누르면 다음부터 묻지 않고 Edge 음성으로 읽습니다(나중에 `npm.cmd run voice:install`로 설치할 수 있어요).
+AI 음성을 아예 쓰지 않으려면 `MALFOID_VOICE=off`로 실행합니다. 설치만 따로 하려면:
 
 ```powershell
 npm.cmd run voice:install
 ```
 
-이 명령이 하는 일:
+설치가 하는 일:
 
 1. 그래픽카드에 맞는 [GPT-SoVITS 윈도우 통합 패키지](https://huggingface.co/lj1995/GPT-SoVITS-windows-package/tree/main)를 다운로드 폴더에 받습니다.
    - 보통은 `GPT-SoVITS-v2pro-20250604.7z`(약 8.2GB)입니다.
@@ -147,8 +150,10 @@ npm.cmd run voice:install -- --dir D:\AI
 
 이렇게 다른 곳에 설치하면 그 위치를 기억해 두어 `npm.cmd start`가 찾아 씁니다. 압축 파일도 그 드라이브에 받습니다.
 
-설치가 끝나면 평소처럼 `npm.cmd start`를 실행하세요. GPT-SoVITS 폴더를 찾아 AI 음성 서버를 자동으로 켭니다(NVIDIA GPU가 있으면 GPU, 없으면 CPU).
-서버가 켜질 때까지는 Edge 음성으로 읽고, 켜지면 자동으로 AI 음성으로 바뀝니다. 처음 실행 때는 캐시를 만드느라 1~3분, 다음부터는 30초쯤 걸립니다.
+설치가 끝나면 `npm.cmd start`가 GPT-SoVITS 폴더를 찾아 AI 음성 서버를 자동으로 켭니다(NVIDIA GPU가 있으면 GPU, 없으면 CPU).
+앱은 기다리지 않고 바로 뜨고, 서버가 켜질 때까지는 Edge 음성으로 읽습니다. 처음 실행 때는 캐시를 만드느라 1~3분, 다음부터는 30초쯤 걸립니다.
+켜지면 짧은 문장을 한 번 읽혀 모델을 데워 두고 터미널에 **AI 음성 준비 완료**를 알립니다. 그때부터 카리나 목소리로 읽습니다.
+서버가 켜지다 꺼지면 터미널에 로그 끝부분을 보여 줍니다.
 
 직접 받고 싶다면 위 링크에서 같은 파일을 받아 [7-Zip](https://www.7-zip.org)으로 홈 폴더, 다운로드, `C:\` 중 한 곳에 푸세요.
 폴더 경로에 한글이 있으면(OneDrive의 "바탕 화면" 등) 한국어 발음을 분석하지 못하니 영문 경로에 두세요.

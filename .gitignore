@@ -5,3 +5,4 @@ dist
 scripts/convert-draconia/.cache/
 __pycache__/
 scripts/gpt-sovits/.install-dir
+scripts/gpt-sovits/.declined
