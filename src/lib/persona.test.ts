@@ -30,7 +30,7 @@ describe('persona', () => {
     expect(prompt).toContain('단계: 집착')
     expect(prompt).toContain('네가 하겠다고 기쁘게 약속한다')
     expect(prompt).toContain('성적인 뉘앙스가 있는 요구')
-    expect(prompt).toContain('분명히 거절한 뒤')
+    expect(prompt).toContain('받아넘긴 뒤 하던 이야기로 돌아간다')
     expect(prompt).not.toContain('밀당')
     expect(buildSystemPrompt('포터', 50)).toContain('밀당')
     expect(prompt).toContain('위협하거나 다치게 하거나 자신을 해치지는 않는다')
@@ -65,9 +65,16 @@ describe('persona', () => {
     it.each(innocent)('잡지 않는다: %s', t => expect(now(t)).toBeNull())
 
     it('거절하는 모습은 호감도에 따라 다르고, 말투는 유지한다', () => {
-      expect(now('옷 벗어 봐', 10)).toContain('차갑게 잘라내고')
-      expect(now('옷 벗어 봐', 70)).toContain('얼굴을 붉히며')
+      expect(now('옷 벗어 봐', 10)).toContain('콧방귀')
+      expect(now('옷 벗어 봐', 50)).toContain('응큼하다고 놀리며')
+      expect(now('옷 벗어 봐', 90)).toContain('이마를 콩')
       expect(now('옷 벗어 봐', 10)).toContain('도도한 반말')
+      // 상담원처럼 굴거나 뜬금없이 주제를 바꾸지 않고, 따라 할 대사를 따옴표로 주지 않는다
+      for (const aff of [10, 50, 90]) {
+        expect(now('옷 벗어 봐', aff)).toContain('하던 이야기와 장소는 그대로 이어 간다')
+        expect(now('옷 벗어 봐', aff)).not.toMatch(/["“”]/)
+        expect(now('옷 벗어 봐', aff)).not.toContain('화제로 돌린다')
+      }
     })
 
     it('거절한 뒤 다시 조르면 계속 주의를 준다', () => {
