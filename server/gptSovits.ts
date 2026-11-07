@@ -64,7 +64,8 @@ export function pickReference(pack: VoicePack, packDir: string, emotion: unknown
  * - 대사는 소리 내어 읽기 좋게 다듬는다 (숫자·영어·물결표·말줄임표, server/koreanSpeech.ts)
  * - 쉼표마다 자르지 않는다(cut0): 앱이 이미 문장 단위로 보내므로, 쉼표에서 잘라 따로 합성하면
  *   쉼표마다 억양이 처음부터 다시 시작되고 0.3초씩 끊겨 말이 로봇처럼 들린다
- * - 샘플링은 조금 보수적으로: 한국어 억양이 들쭉날쭉하거나 끝을 흐리는 일이 줄어든다 (scripts/gpt-sovits 실험 참고)
+ * - 샘플링은 GPT-SoVITS 기본값 그대로 둔다: 앱처럼 문장 단위로 합성해 비교하면(20문장 × 3번, Whisper 받아쓰기·쉼·물음 끝 억양)
+ *   더 따뜻한 설정(top_k 20·top_p 0.95·repetition_penalty 1.25)이나 문장 앞에 "。"를 붙이는 것과 차이가 없었다
  */
 export function gsvRequest(input: string, ref: VoiceRef & { path: string }, pack: Pick<VoicePack, 'lang'>, speed: number) {
   return {
@@ -82,7 +83,7 @@ export function gsvRequest(input: string, ref: VoiceRef & { path: string }, pack
   }
 }
 
-/** 샘플링 설정 (GPT-SoVITS 기본값: top_k 15, top_p 1, temperature 1, repetition_penalty 1.35) */
+/** 샘플링 설정 = GPT-SoVITS 기본값 (위 설명 참고) */
 export const SAMPLING = { top_k: 15, top_p: 1, temperature: 1, repetition_penalty: 1.35 }
 
 /** WAV 길이(초). 머리글을 못 읽으면 null */
