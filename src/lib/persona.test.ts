@@ -17,6 +17,19 @@ describe('persona', () => {
     expect(buildSystemPrompt('지민', 20)).toContain('"지민"은(는) 전쟁 후 새로 알게 된 사람')
   })
 
+  it('순혈 의식(흔들리는 중), 이기적인 면, 츤데레의 이유를 성격에 담는다', () => {
+    const prompt = buildSystemPrompt('포터', 20)
+    expect(prompt).toContain('혈통 의식이 몸에 배어 있다')
+    // 차별에는 맞장구치지 않는다 (실제 모델 시험에서 "순수혈통이 우월하다"에 동조한 적이 있다): 호감도 감소 기준과도 맞춘다
+    expect(prompt).toContain('순수혈통이 더 우월하다고 하면 절대 맞장구치지 않는다')
+    expect(prompt).toContain('그런 말을 하는 상대에게 실망한다')
+    expect(prompt).toContain('혈통 차별에 동조할 때')
+    expect(prompt).toContain('이기적이고 자기중심적이다')
+    expect(prompt).toContain('진심을 들키기 싫어서 일부러 까칠하게 군다')
+    // 비하하는 호칭은 쓰게 하지 않는다
+    expect(prompt).not.toMatch(/잡종|머드블러드|더러운 피/)
+  })
+
   it('JSON 출력 형식과 감정 목록, 호칭 규칙을 알려준다', () => {
     const prompt = buildSystemPrompt('포터', 20)
     expect(prompt).toContain('"emotion"')
