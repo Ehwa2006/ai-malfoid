@@ -302,6 +302,7 @@ export function useChat() {
     out?.begin()
     let aborted = false
     let committed = false
+    let speechFlushed = false
     try {
       await streamChat({
         baseUrl: settings.value.baseUrl.replace(/\/+$/, ''),
@@ -310,7 +311,14 @@ export function useChat() {
         messages: llmMessages,
         format: REPLY_SCHEMA,
         signal: controller.signal,
-        onToken: t => parser.push(t),
+        onToken: (t) => {
+          parser.push(t)
+          // 대사가 끝나면 남은 문장을 바로 읽는다. 속마음·기억·선택지를 다 만들 때까지(CPU에서 10~20초) 기다리지 않게
+          if (!speechFlushed && parser.replyFinished && started === epoch) {
+            speechFlushed = true
+            out?.end()
+          }
+        },
       })
       if (started !== epoch)
         return false
