@@ -216,8 +216,19 @@ namespace Malfoid
                 GestureId = baseGesture;
                 habitAt = t + 10f + Random.value * 10f;
             }
-            if (reaction != null || Speaking || Thinking)
+            if (reaction != null)
                 return;
+            if (Speaking || Thinking)
+            {
+                // 말을 시작하면 하던 버릇(하품, 머리 넘기기)을 그만두고 대답의 몸짓으로 돌아온다
+                if (habitUntil > 0)
+                {
+                    habitUntil = 0;
+                    GestureId = baseGesture;
+                }
+                habitAt = Mathf.Max(habitAt, t + 6f);
+                return;
+            }
             // 버릇: 한동안 조용하면 혼자 머리를 넘기거나 찻잔을 드는 등 잠깐 다른 몸짓을 했다가 돌아온다
             if (habitUntil > 0 && t > habitUntil)
             {

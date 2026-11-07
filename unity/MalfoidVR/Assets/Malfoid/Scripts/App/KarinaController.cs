@@ -34,6 +34,7 @@ namespace Malfoid
         bool connected;
         string model = "";
         Grabbable pendingGift;
+        string shownEngine;
 
         /// <summary>대답이 끝났을 때 (선물을 탁자로 돌려놓는 등)</summary>
         public event System.Action TurnFinished;
@@ -270,6 +271,12 @@ namespace Malfoid
         {
             avatar.Speaking = voice.IsSpeaking;
             avatar.MouthLevel = voice.Level;
+            // 실제로 읽은 음성이 바뀌면(AI 음성이 늦게 켜짐, 서버가 꺼짐) 상태 판도 바꾼다
+            if (connected && voice.Engine != shownEngine && voice.IsSpeaking)
+            {
+                shownEngine = voice.Engine;
+                UpdateSystemLine(shownEngine);
+            }
         }
     }
 }
