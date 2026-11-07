@@ -1,0 +1,224 @@
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import { listModels, pickModel } from '../lib/ollama'
+import { DEFAULT_MODEL_URL, type Settings } from '../composables/useChat'
+import { EDGE_VOICES, type GsvStatus } from '../composables/useTts'
+
+const settings = defineModel<Settings>({ required: true })
+defineProps<{ voices?: SpeechSynthesisVoice[], gsvStatus?: GsvStatus | null }>()
+const emit = defineEmits<{ 'reset': [], 'close': [], 'model-file': [file: File], 'export-glb': [], 'preview-voice': [], 'refresh-gsv': [] }>()
+
+const models = ref<string[]>([])
+const status = ref('')
+
+async function refresh() {
+  status.value = '모델 목록을 불러오는 중…'
+  try {
+    models.value = await listModels(settings.value.baseUrl.replace(/\/+$/, ''))
+    status.value = models.value.length
+      ? `✅ Ollama 연결됨 (모델 ${models.value.length}개)`
+      : '⚠️ 설치된 모델이 없어요. `ollama pull exaone3.5:7.8b` 를 실행해 주세요.'
+    settings.value.model = pickModel(models.value, settings.value.model)
+  }
+  catch (e) {
+    status.value = `❌ ${(e as Error).message}`
+  }
+}
+
+function onModelFile(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (file)
+    emit('model-file', file)
+}
+
+function confirmReset() {
+  if (confirm('대화, 호감도, 카리나의 기억과 일기를 모두 지우고 처음부터 다시 시작할까요?'))
+    emit('reset')
+}
+
+onMounted(refresh)
+</script>
+
+<template>
+  <div class="panel">
+    <header>
+      <h2>설정</h2>
+      <button class="ghost" @click="emit('close')">✕</button>
+    </header>
+
+    <label>
+      내 이름 (말포이가 부를 이름)
+      <input v-model="settings.userName" maxlength="20">
+    </label>
+
+    <label>
+      Ollama 주소
+      <div class="inline">
+        <input v-model="settings.baseUrl" placeholder="/ollama 또는 http://localhost:11434">
+        <button @click="refresh">연결 확인</button>
+      </div>
+    </label>
+    <p class="status">{{ status }}</p>
+
+    <label>
+      모델
+      <select v-if="models.length" v-model="settings.model">
+        <option v-for="m in models" :key="m" :value="m">{{ m }}</option>
+      </select>
+      <input v-else v-model="settings.model">
+    </label>
+
+    <label>
+      창의성 (temperature): {{ settings.temperature.toFixed(1) }}
+      <input v-model.number="settings.temperature" type="range" min="0" max="1.5" step="0.1">
+    </label>
+
+    <label>
+      기억할 최근 대화 수: {{ settings.historyLimit }}
+      <input v-model.number="settings.historyLimit" type="range" min="4" max="40" step="2">
+    </label>
+
+    <label class="check">
+      <input v-model="settings.showChoices" type="checkbox">
+      답변 아래에 선택지(이어서 할 말 3개) 보이기
+    </label>
+
+    <label>
+      아바타
+      <select v-model="settings.avatarMode">
+        <option value="vrm">원본 모델 Malfoy Draconia (VRM, 2D 일러스트처럼 그림)</option>
+        <option value="2d">2D 손그림 초상화 (가장 가벼움)</option>
+        <option value="procedural">3D 간이 모델 (코드로 생성)</option>
+      </select>
+    </label>
+
+    <template v-if="settings.avatarMode === 'vrm'">
+      <label>
+        다른 VRM 모델 주소 (.vrm / .glb, 비우면 기본 모델)
+        <input v-model.trim="settings.modelUrl" :placeholder="DEFAULT_MODEL_URL">
+      </label>
+      <label>
+        또는 내 컴퓨터의 모델 파일 열기 (이번 접속에서만 유지)
+        <input type="file" accept=".vrm,.glb,.gltf" @change="onModelFile">
+      </label>
+    </template>
+    <button v-if="settings.avatarMode === 'procedural'" class="ghost" @click="emit('export-glb')">간이 3D 모델을 .glb로 내보내기</button>
+
+    <fieldset class="tts">
+      <legend>
+        <label class="check">
+          <input v-model="settings.tts.enabled" type="checkbox"> 목소리 (TTS)
+        </label>
+      </legend>
+      <template v-if="settings.tts.enabled">
+        <label>
+          음성 엔진
+          <select v-model="settings.tts.provider">
+            <option value="gsv">AI 음성 모델 (GPT-SoVITS, 로컬, 감정별 목소리)</option>
+            <option value="edge">Edge 신경망 음성 (온라인, 무료)</option>
+            <option value="browser">브라우저 내장 음성 (오프라인)</option>
+            <option value="openai">OpenAI 호환 서버 (API 키·로컬 서버)</option>
+          </select>
+        </label>
+
+        <div v-if="settings.tts.provider === 'gsv'" class="gsv">
+          <p>
+            서버:
+            <strong v-if="gsvStatus?.server">✅ 연결됨</strong>
+            <strong v-else>❌ 꺼짐</strong> ({{ gsvStatus?.url ?? 'http://127.0.0.1:9880' }})
+            <button class="ghost" @click="emit('refresh-gsv')">다시 확인</button>
+          </p>
+          <p>
+            보이스 팩:
+            <strong v-if="gsvStatus?.pack">{{ gsvStatus.pack.name }}</strong>
+            <strong v-else>없음 (voices/karina)</strong>
+          </p>
+          <p v-if="gsvStatus?.pack?.credit" class="credit">{{ gsvStatus.pack.credit }}</p>
+          <p v-if="!gsvStatus?.server" class="hint">
+            꺼져 있으면 Edge 음성으로 대신 읽어요. npm start로 켜면 처음에는 1~3분 걸리고, 켜지면 자동으로 바뀌어요.
+            설치는 npm.cmd run voice:install, 켜지지 않는 원인은 GPT-SoVITS 폴더의 karina-api.log에서 볼 수 있어요.
+          </p>
+        </div>
+
+        <label v-if="settings.tts.provider === 'edge'">
+          목소리
+          <select v-model="settings.tts.edgeVoice">
+            <option v-for="v in EDGE_VOICES" :key="v.id" :value="v.id">{{ v.label }}</option>
+          </select>
+        </label>
+
+        <label v-if="settings.tts.provider === 'browser'">
+          목소리 (이 컴퓨터에 설치된 음성)
+          <select v-model="settings.tts.browserVoice">
+            <option value="">자동 (한국어 음성)</option>
+            <option v-for="v in voices ?? []" :key="v.name" :value="v.name">{{ v.name }} ({{ v.lang }})</option>
+          </select>
+        </label>
+
+        <template v-if="settings.tts.provider === 'openai'">
+          <label>
+            서버 주소 (…/v1)
+            <input v-model.trim="settings.tts.openai.url" placeholder="https://api.openai.com/v1">
+          </label>
+          <div class="inline">
+            <label>
+              모델
+              <input v-model.trim="settings.tts.openai.model" placeholder="gpt-4o-mini-tts">
+            </label>
+            <label>
+              목소리
+              <input v-model.trim="settings.tts.openai.voice" placeholder="nova">
+            </label>
+          </div>
+          <label>
+            API 키 (이 브라우저에만 저장됨, 로컬 서버면 비워 두기)
+            <input v-model.trim="settings.tts.openai.apiKey" type="password" autocomplete="off">
+          </label>
+        </template>
+
+        <label>
+          빠르기: {{ settings.tts.rate.toFixed(2) }}배
+          <input v-model.number="settings.tts.rate" type="range" min="0.7" max="1.5" step="0.05">
+        </label>
+        <label v-if="settings.tts.provider === 'edge' || settings.tts.provider === 'browser'">
+          음 높이: {{ settings.tts.pitch > 0 ? '+' : '' }}{{ settings.tts.pitch }}%
+          <input v-model.number="settings.tts.pitch" type="range" min="-20" max="20" step="1">
+        </label>
+        <button class="ghost" @click="emit('preview-voice')">🔊 목소리 미리 듣기</button>
+      </template>
+    </fieldset>
+
+    <button class="danger" @click="confirmReset">처음부터 다시 (대화·호감도·기억·일기)</button>
+  </div>
+</template>
+
+<style scoped>
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+header { display: flex; justify-content: space-between; align-items: center; }
+h2 { margin: 0; font-size: 1.1rem; }
+label { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; color: var(--text-dim); }
+.inline { display: flex; gap: 6px; }
+.inline input { flex: 1; min-width: 0; }
+.status { margin: -6px 0 0; font-size: 0.8rem; color: var(--text-dim); }
+.danger { background: #5a1d1d; }
+.tts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 10px 12px 12px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 10px;
+}
+.tts legend { padding: 0 6px; }
+.check { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
+.tts .inline label { flex: 1; min-width: 0; }
+.gsv p { margin: 0 0 4px; font-size: 0.82rem; color: var(--text-dim); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.gsv strong { color: var(--text); font-weight: 600; }
+.gsv button { padding: 2px 8px; font-size: 0.78rem; }
+.gsv .credit, .gsv .hint { display: block; font-size: 0.75rem; }
+</style>
