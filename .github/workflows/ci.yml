@@ -1,0 +1,22 @@
+# 올릴 때마다 단위 테스트와 빌드(타입 검사 포함)를 돌린다.
+# 실제 모델 평가(npm run eval)는 Ollama와 모델이 필요해서 여기서 돌리지 않는다. 평가의 판정 규칙과 실행기는
+# 가짜 모델로 단위 테스트에서 확인한다 (scripts/eval/*.test.ts).
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build

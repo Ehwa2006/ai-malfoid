@@ -1,9 +1,9 @@
-// VR 앱(유니티, unity/MalfoidVR)이 쓰는 대화 세션.
-// 웹 앱의 useChat과 같은 흐름을 서버에서 돌린다: 설정 프롬프트·거절 메모·호감도·기억·장소·단계 상승 이벤트가
-// 모두 src/lib의 같은 코드를 쓰므로, 카리나의 성격과 안전 규칙은 한 곳에서만 고친다.
-// 유니티는 말·행동을 보내고, 줄 단위 JSON(NDJSON)으로 흘러나오는 사건(표정, 몸짓, 읽을 문장, 속마음…)을 받아 연출만 한다.
-//
-// 대화는 웹 앱(브라우저 저장소)과 따로 .malfoid/vr-session.json에 저장된다.
+// 화면 없이 돌아가는 대화 세션. 웹 앱의 useChat과 같은 흐름(설정 프롬프트 → 지난 대화 → 상태 → 마지막 말 → 이번 턴의 메모,
+// 거절 메모, 호감도, 기억, 장소, 단계 상승 이벤트)을 src/lib의 같은 코드로 돌린다.
+// - VR 앱(유니티)이 쓰는 서버 API가 이 세션으로 대답한다
+// - 실제 모델 평가(npm run eval)가 이 세션으로 정해 둔 대화를 돌린다
+// 그래서 카리나의 성격과 안전 규칙은 src/lib에서 한 번만 고치면 웹·VR·평가에 함께 적용된다.
+// 대답은 사건(표정, 몸짓, 자막, 읽을 문장, 속마음, 선택지, 호감도…)으로 흘려보낸다.
 import { clampAffection, clampDelta, STAGES, stageOf } from '../src/lib/affection'
 import { composeChat, historyStart } from '../src/lib/context'
 import { cleanMemory, cleanSuggestions } from '../src/lib/extras'
@@ -18,7 +18,7 @@ import { RETURN_GAP_MS } from '../src/lib/time'
 import { SpeechChunker } from '../src/tts/chunker'
 import { type GestureId, pickGesture, reactionFor } from '../src/avatar2d/gestures'
 
-export interface VrMessage {
+export interface SessionMessage {
   role: 'user' | 'assistant'
   text: string
   at: number
@@ -30,11 +30,11 @@ export interface VrMessage {
   greeting?: boolean
 }
 
-export interface VrState {
+export interface SessionState {
   version: 1
   userName: string
   affection: number
-  messages: VrMessage[]
+  messages: SessionMessage[]
   memories: Memory[]
   scene: Scene
   lastActiveAt: number | null
@@ -42,8 +42,8 @@ export interface VrState {
   pendingEvent: { from: string, to: string } | null
 }
 
-/** 유니티로 흘려보내는 사건 (한 줄에 하나) */
-export type VrEvent =
+/** 흘려보내는 사건 (VR API는 한 줄에 하나씩 보낸다) */
+export type SessionEvent =
   | { type: 'turn', user: string }
   /** 행동(선물·손길)에 곧바로 보이는 반응. 모델의 답이 오기 전에 먼저 움직인다 */
   | { type: 'reaction', id: string, gesture: GestureId, emotion: Emotion, prop: string | null }
@@ -63,8 +63,8 @@ export type VrEvent =
 export type ChatFn = (messages: ChatMessage[], onToken: (t: string) => void, signal: AbortSignal) => Promise<void>
 
 export interface SessionStore {
-  load: () => VrState | null
-  save: (state: VrState) => void
+  load: () => SessionState | null
+  save: (state: SessionState) => void
 }
 
 export interface SessionOptions {
@@ -90,14 +90,14 @@ export function lockedTouchNote(item: Interaction): string {
   return `[이번 행동에 대한 주의] 상대가 허락도 없이 ${item.label.replace(/\s+/g, ' ')}를 하려 한다. 아직 그럴 만큼 가까운 사이가 아니다. 허락하지 않는다: 카리나답게 손을 탁 쳐내거나 한 발 물러나며 짧게 쏘아붙인다. 하던 이야기와 장소는 그대로 이어 간다.`
 }
 
-function greetingMessage(userName: string, now: number): VrMessage {
+function greetingMessage(userName: string, now: number): SessionMessage {
   // 첫 인사는 마커(<|EMOTE:…|>)가 섞인 글이다: 표정만 빼서 대사로 쓴다
   const raw = buildGreeting(userName)
   const emotion = /<\|EMOTE:(\w+)\|>/.exec(raw)?.[1] as Emotion | undefined
   return { role: 'assistant', text: finishReply(raw.replace(/<\|[^|]*\|>/g, '').trim()), at: now, ...(emotion ? { emotion } : {}) }
 }
 
-export function freshState(userName = '포터', now = Date.now()): VrState {
+export function freshState(userName = '포터', now = Date.now()): SessionState {
   return {
     version: 1,
     userName,
@@ -111,8 +111,8 @@ export function freshState(userName = '포터', now = Date.now()): VrState {
 }
 
 /** 저장된 상태를 읽을 때 망가진 값은 기본값으로 */
-export function sanitizeState(raw: unknown, now = Date.now()): VrState {
-  const s = (raw && typeof raw === 'object' ? raw : {}) as Partial<VrState>
+export function sanitizeState(raw: unknown, now = Date.now()): SessionState {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as Partial<SessionState>
   const base = freshState(typeof s.userName === 'string' && s.userName.trim() ? s.userName.trim() : '포터', now)
   return {
     ...base,
@@ -131,8 +131,8 @@ export class BusyError extends Error {
   }
 }
 
-export class VrSession {
-  state: VrState
+export class ChatSession {
+  state: SessionState
   private busy = false
   private gesture: GestureId = 'idle'
   private readonly historyLimit: number
@@ -150,7 +150,7 @@ export class VrSession {
     return this.busy
   }
 
-  /** 유니티가 처음 켜졌을 때·설정 화면에서 보는 상태 */
+  /** 지금 상태 (VR 앱이 처음 켜질 때·설정 화면에서 본다) */
   snapshot() {
     const s = this.state
     const last = [...s.messages].reverse().find(m => m.role === 'assistant')
@@ -192,7 +192,7 @@ export class VrSession {
    * 말 또는 행동 하나에 카리나가 대답한다.
    * @param input text: 말, action: 행동 id (ACTIONS)
    */
-  async say(input: { text?: string, action?: string }, emit: (e: VrEvent) => void, signal: AbortSignal): Promise<void> {
+  async say(input: { text?: string, action?: string }, emit: (e: SessionEvent) => void, signal: AbortSignal): Promise<void> {
     if (this.busy)
       throw new BusyError()
     const action = input.action ? ACTIONS.find(a => a.id === input.action) : undefined
@@ -234,7 +234,7 @@ export class VrSession {
   }
 
   /** 오랜만에(6시간 넘게) 다시 찾아왔으면 카리나가 먼저 말을 건다. 인사했으면 true */
-  async greetIfAway(emit: (e: VrEvent) => void, signal: AbortSignal): Promise<boolean> {
+  async greetIfAway(emit: (e: SessionEvent) => void, signal: AbortSignal): Promise<boolean> {
     const s = this.state
     const last = s.lastActiveAt
     const hasTalked = s.messages.some(m => m.role === 'user')
@@ -254,7 +254,7 @@ export class VrSession {
     }))
   }
 
-  private async runReply(notes: string[], emit: (e: VrEvent) => void, signal: AbortSignal, opts: { greeting?: boolean, guarded?: boolean, noRise?: boolean, showsEvent?: boolean, userText?: string }) {
+  private async runReply(notes: string[], emit: (e: SessionEvent) => void, signal: AbortSignal, opts: { greeting?: boolean, guarded?: boolean, noRise?: boolean, showsEvent?: boolean, userText?: string }) {
     const { greeting = false, guarded = false, noRise = guarded, showsEvent = false, userText = '' } = opts
     const s = this.state
     const now = this.now()
@@ -264,7 +264,7 @@ export class VrSession {
       buildStateNote(s.affection, { now: new Date(now), lastActiveAt: s.lastActiveAt, memories: s.memories }),
       notes,
     )
-    const reply: VrMessage = { role: 'assistant', text: '', at: now, ...(greeting ? { greeting: true } : {}) }
+    const reply: SessionMessage = { role: 'assistant', text: '', at: now, ...(greeting ? { greeting: true } : {}) }
     let delta = 0
     let memory: string | null = null
     let emotion: Emotion = 'neutral'

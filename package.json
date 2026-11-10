@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit && tsc -p tsconfig.node.json",
     "test": "vitest run",
+    "eval": "node scripts/eval/run.mjs",
     "unity:data": "vitest run scripts/unity -u"
   },
   "dependencies": {

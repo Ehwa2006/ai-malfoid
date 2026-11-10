@@ -11,14 +11,13 @@
 // POST /vr/settings  {userName}
 // POST /vr/reset     처음부터
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { request as httpRequest, type IncomingMessage, type ServerResponse } from 'node:http'
-import { request as httpsRequest } from 'node:https'
-import { Readable } from 'node:stream'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import { dirname, resolve } from 'node:path'
 import type { Connect, Plugin } from 'vite'
 import { listModels, pickModel, streamChat } from '../src/lib/ollama'
 import { REPLY_SCHEMA } from '../src/lib/reply'
-import { BusyError, type ChatFn, type SessionStore, type VrEvent, VrSession } from './vrSession'
+import { BusyError, type ChatFn, ChatSession, type SessionEvent, type SessionStore } from './chatSession'
+import { patientFetch } from './patientFetch'
 
 export const VR_PATH = '/vr'
 
@@ -40,33 +39,6 @@ export function fileStore(file: string): SessionStore {
       renameSync(`${path}.tmp`, path)
     },
   }
-}
-
-/**
- * 응답 머리글을 기다리는 시간 제한이 없는 fetch.
- * Node의 fetch는 머리글이 5분 안에 오지 않으면 끊는데, CPU에서 처음 모델을 올리면(수 GB) 그보다 오래 걸리기도 한다
- * (Ollama는 첫 글자를 만들 때 머리글을 보낸다). 브라우저(웹 앱)는 이런 제한이 없다.
- */
-export function patientFetch(url: string | URL | Request, init: RequestInit = {}): Promise<Response> {
-  const u = new URL(typeof url === 'string' || url instanceof URL ? url : url.url)
-  return new Promise((resolve, reject) => {
-    const headers: Record<string, string> = {}
-    new Headers(init.headers).forEach((v, k) => { headers[k] = v })
-    const req = (u.protocol === 'https:' ? httpsRequest : httpRequest)(u, { method: init.method ?? 'GET', headers }, (res) => {
-      const h = new Headers()
-      for (const [k, v] of Object.entries(res.headers)) {
-        if (v !== undefined)
-          h.set(k, Array.isArray(v) ? v.join(', ') : v)
-      }
-      resolve(new Response(Readable.toWeb(res) as ReadableStream, { status: res.statusCode ?? 0, headers: h }))
-    })
-    req.on('error', reject)
-    const abort = () => req.destroy(Object.assign(new Error('This operation was aborted'), { name: 'AbortError' }))
-    if (init.signal?.aborted)
-      return abort()
-    init.signal?.addEventListener('abort', abort, { once: true })
-    req.end(typeof init.body === 'string' ? init.body : undefined)
-  })
 }
 
 /** Ollama에 대답을 받는 함수. 설정한 모델이 없으면 설치된 모델 중 하나를 고른다 */
@@ -102,7 +74,7 @@ function sendJson(res: ServerResponse, status: number, data: unknown) {
 }
 
 /** 대답을 줄 단위 JSON으로 흘려보낸다. 앱이 연결을 끊으면 모델 호출도 멈춘다 */
-async function stream(res: ServerResponse, run: (emit: (e: VrEvent) => void, signal: AbortSignal) => Promise<unknown>) {
+async function stream(res: ServerResponse, run: (emit: (e: SessionEvent) => void, signal: AbortSignal) => Promise<unknown>) {
   const abort = new AbortController()
   res.on('close', () => {
     if (!res.writableFinished)
@@ -113,7 +85,7 @@ async function stream(res: ServerResponse, run: (emit: (e: VrEvent) => void, sig
   res.setHeader('Cache-Control', 'no-store')
   res.setHeader('X-Accel-Buffering', 'no')
   res.flushHeaders()
-  const emit = (e: VrEvent) => {
+  const emit = (e: SessionEvent) => {
     if (!res.writableEnded)
       res.write(`${JSON.stringify(e)}\n`)
   }
@@ -128,8 +100,8 @@ async function stream(res: ServerResponse, run: (emit: (e: VrEvent) => void, sig
 
 export function vrApi(options: { ollama: string, model?: string, stateFile?: string, chat?: ChatFn }): Plugin {
   const chat = options.chat ?? ollamaChat(options.ollama, options.model || 'exaone3.5:7.8b')
-  let session: VrSession | null = null
-  const getSession = () => (session ??= new VrSession(fileStore(options.stateFile ?? '.malfoid/vr-session.json'), chat))
+  let session: ChatSession | null = null
+  const getSession = () => (session ??= new ChatSession(fileStore(options.stateFile ?? '.malfoid/vr-session.json'), chat))
 
   const handle = async (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => {
     const path = req.url?.split('?')[0] ?? ''
