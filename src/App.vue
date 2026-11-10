@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { DEFAULT_MODEL_URL, useChat } from './composables/useChat'
 import { useTts } from './composables/useTts'
+import { useVoiceInput } from './composables/useVoiceInput'
 import { callName, CHARACTER_NAME, CHARACTER_TAGLINE } from './lib/persona'
 import { SCENE_INFO } from './lib/scenes'
 import { actionMessage, GIFTS, TOUCHES } from './lib/interactions'
@@ -11,6 +12,7 @@ import MessageBubble from './components/MessageBubble.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 import ActionTray from './components/ActionTray.vue'
 import MemoryPanel from './components/MemoryPanel.vue'
+import MicButton from './components/MicButton.vue'
 
 // three.js는 용량이 커서 채팅 화면이 먼저 뜨도록 나중에 불러온다
 const Avatar3D = defineAsyncComponent(() => import('./components/Avatar3D.vue'))
@@ -128,6 +130,26 @@ async function sendText(text: string) {
   tts.unlock() // 보내기(사용자 입력) 순간에 소리 재생을 허락받아 둔다
   await send(text)
 }
+
+// 말로 하기: 알아들은 말을 바로 보내거나(기본), 입력칸에 넣어 고친 뒤 보낸다
+const voice = useVoiceInput({
+  onText(text) {
+    if (settings.value.voiceInput.autoSend && !isStreaming.value && !input.value.trim()) {
+      void sendText(text)
+      return
+    }
+    input.value = input.value.trim() ? `${input.value.trim()} ${text}` : text
+  },
+  // 카리나 목소리가 마이크에 들어가지 않게 먼저 멈춘다
+  beforeStart: () => tts.stop(),
+})
+const micLine = computed(() => {
+  if (voice.state.value === 'listening')
+    return voice.interim.value ? `🎤 ${voice.interim.value}` : voice.holding.value ? '🎤 듣는 중… 버튼을 떼면 알아들어요' : '🎤 듣는 중… 말을 멈추면 알아들어요'
+  if (voice.state.value === 'transcribing')
+    return '🎤 알아듣는 중…'
+  return voice.error.value ? `🎤 ${voice.error.value}` : ''
+})
 
 async function submit() {
   // 답변을 받는 중에는 보내지 않는다 (입력한 글도 지우지 않는다)
@@ -270,6 +292,11 @@ watch(() => messages.value.map(m => m.text.length).join() + choices.value.length
         <button class="ghost" @click="tts.error.value = null">닫기</button>
       </p>
 
+      <p v-if="micLine" class="mic-line" :class="{ problem: voice.state.value === 'idle' }" role="status">
+        {{ micLine }}
+        <button v-if="voice.state.value === 'idle'" class="ghost" @click="voice.error.value = null">닫기</button>
+      </p>
+
       <form class="composer" @submit.prevent="submit">
         <div ref="trayWrap" class="tray-wrap">
           <button
@@ -299,6 +326,15 @@ watch(() => messages.value.map(m => m.text.length).join() + choices.value.length
           rows="1"
           :placeholder="`${settings.userName}(으)로서 말포이에게 말을 걸어보세요…`"
           @keydown="onKeydown"
+        />
+        <MicButton
+          :state="voice.state.value"
+          :level="voice.level.value"
+          :engine="voice.engine.value"
+          :disabled="isStreaming || !voice.engine.value"
+          @start="voice.start()"
+          @stop="voice.stop()"
+          @hold="voice.holding.value = true"
         />
         <button v-if="isStreaming || tts.speaking.value" type="button" @click="stopAll">중지</button>
         <button v-else type="submit" :disabled="!input.trim()">보내기</button>
@@ -441,6 +477,16 @@ h1 { margin: 8px 0 0; font-size: 1.3rem; letter-spacing: 0.04em; }
   gap: 8px;
 }
 .notice button { margin-left: auto; padding: 2px 8px; }
+.mic-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 24px;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+.mic-line.problem { color: #ffb4a8; }
+.mic-line button { margin-left: auto; padding: 2px 8px; }
 .composer {
   position: relative;
   display: flex;
@@ -481,6 +527,6 @@ h1 { margin: 8px 0 0; font-size: 1.3rem; letter-spacing: 0.04em; }
   .messages, .composer, .choices { padding-left: 16px; padding-right: 16px; }
   .tray { left: 16px; right: 16px; }
   .scene { margin: 0; }
-  .notice, .error { margin-left: 16px; margin-right: 16px; }
+  .notice, .error, .mic-line { margin-left: 16px; margin-right: 16px; }
 }
 </style>

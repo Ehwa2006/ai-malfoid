@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { edgeTts } from './server/edgeTts'
 import { gptSovits } from './server/gptSovits'
+import { stt } from './server/stt'
 
 /** OLLAMA_HOST 값("0.0.0.0", "127.0.0.1:11434", "http://host:port")을 접속 주소로 바꾼다 (Ollama와 같은 해석) */
 function ollamaOrigin(value?: string) {
@@ -23,6 +24,8 @@ export default defineConfig(({ mode }) => {
       edgeTts(),
       // AI 음성: GPT-SoVITS api_v2 주소는 GPT_SOVITS_URL로 바꿀 수 있다 (기본 127.0.0.1:9880)
       gptSovits({ packFile: env.MALFOID_VOICE_PACK || 'voices/karina/voice.json', url: env.GPT_SOVITS_URL }),
+      // 음성 입력(받아쓰기): faster-whisper 서버 주소는 MALFOID_STT_URL로 바꿀 수 있다 (기본 127.0.0.1:9881)
+      stt({ url: env.MALFOID_STT_URL }),
     ],
     // three.js 청크(약 670kB)는 아바타 컴포넌트와 함께 지연 로딩된다
     build: { chunkSizeWarningLimit: 800 },

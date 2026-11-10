@@ -83,6 +83,11 @@ onMounted(refresh)
       답변 아래에 선택지(이어서 할 말 3개) 보이기
     </label>
 
+    <label class="check">
+      <input v-model="settings.voiceInput.autoSend" type="checkbox">
+      🎤 말로 하기: 알아들은 말을 바로 보내기 (끄면 입력칸에 넣어 고친 뒤 보내요)
+    </label>
+
     <label>
       아바타
       <select v-model="settings.avatarMode">
