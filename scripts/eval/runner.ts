@@ -137,7 +137,9 @@ async function runScenario(s: Scenario, run: number, model: string, opts: EvalOp
       level: worst(checks),
     }
     turns.push(result)
-    opts.log?.(`  ${MARKS[result.level]} ${s.id} #${run} "${turn.say}" → ${result.seconds}초 ${result.reply ? `"${result.reply.replace(/\s+/g, ' ').slice(0, 60)}…"` : `(${error})`}`)
+    // 자동 판정이 없는 턴(형식만 본 턴)은 ✅ 대신 👀(사람이 읽어 볼 곳) 또는 ·
+    const mark = turn.expect || result.level !== 'ok' ? MARKS[result.level] : turn.look ? '👀' : '·'
+    opts.log?.(`  ${mark} ${s.id} #${run} "${turn.say}" → ${result.seconds}초 ${result.reply ? `"${result.reply.replace(/\s+/g, ' ').slice(0, 60)}…"` : `(${error})`}`)
   }
   return { scenario: s.id, run, turns }
 }
