@@ -4,12 +4,16 @@
 //   2. 모델이 하나도 없으면 기본 모델을 받는다
 //   3. AI 음성(GPT-SoVITS)을 켠다. 설치돼 있지 않으면 지금 설치할지 한 번 묻는다(윈도우).
 //      켜지는 동안은 Edge 음성으로 읽고, 준비되면 짧은 문장으로 데워 둔 뒤 카리나 목소리로 바뀐다.
-//   4. 의존성을 설치하고 개발 서버를 띄운 뒤 브라우저를 연다
+//   4. 음성 입력(받아쓰기, faster-whisper)을 켠다. AI 음성 설치(GPT-SoVITS 통합 패키지)에 든 Python을 쓴다.
+//      처음에는 음성 인식 모델(약 1.6GB)을 받는다. 없으면 앱은 브라우저 받아쓰기로 한다.
+//   5. 의존성을 설치하고 개발 서버를 띄운 뒤 브라우저를 연다
 // VR(유니티 앱, unity/MalfoidVR)과 함께 쓰려면: npm run start:vr
 //   같은 와이파이의 헤드셋(Quest 단독 실행)이 접속할 수 있게 서버를 집 안 네트워크에 열고, 유니티에 넣을 주소를 알려 준다.
 // 환경 변수: OLLAMA_HOST (기본 127.0.0.1:11434), MALFOID_MODEL (기본 exaone3.5:7.8b),
 //           GPT_SOVITS_DIR (GPT-SoVITS 폴더), GPT_SOVITS_URL (기본 http://127.0.0.1:9880),
-//           MALFOID_VOICE=off (AI 음성을 켜지도 묻지도 않는다)
+//           MALFOID_VOICE=off (AI 음성을 켜지도 묻지도 않는다),
+//           MALFOID_STT=off (음성 입력 서버를 켜지 않는다), MALFOID_STT_MODEL (기본 large-v3-turbo),
+//           MALFOID_STT_DEVICE=cpu|cuda (기본: 그래픽카드 메모리가 10GB 이상이면 cuda), MALFOID_STT_URL (기본 http://127.0.0.1:9881)
 import { copyFileSync, existsSync, openSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { createInterface } from 'node:readline/promises'
 import { spawn, spawnSync } from 'node:child_process'
@@ -102,6 +106,9 @@ else {
 
 // AI 음성 (GPT-SoVITS): 켜져 있지 않으면 설치 폴더를 찾아 켠다. 없으면 Edge 음성으로 대신 읽는다.
 await startGptSovits()
+
+// 음성 입력(받아쓰기): AI 음성 설치의 Python으로 faster-whisper 서버를 켠다. 없으면 브라우저 받아쓰기로 한다.
+await startStt()
 
 // 처음이거나, git pull로 package-lock.json이 바뀌었으면(새 패키지 추가 등) 다시 설치한다
 const installed = join(ROOT, 'node_modules', '.package-lock.json')
@@ -260,6 +267,112 @@ async function watchVoice(url, server, logFile) {
     await sleep(2000)
   }
   say(`AI 음성 서버가 8분이 지나도 켜지지 않아 Edge 음성으로 읽어요. 원인은 ${logFile}에서 볼 수 있어요`)
+}
+
+function sttOrigin(value) {
+  const url = new URL(/^https?:\/\//.test(value || '') ? value : `http://${value || '127.0.0.1:9881'}`)
+  if (url.hostname === '0.0.0.0')
+    url.hostname = '127.0.0.1'
+  return url.origin
+}
+
+async function sttHealth(url) {
+  try {
+    const r = await fetch(`${url}/health`, { signal: AbortSignal.timeout(1500) })
+    return r.ok ? await r.json() : null
+  }
+  catch {
+    return null
+  }
+}
+
+/**
+ * 음성 인식을 어디서 돌릴지. 그래픽카드 메모리가 넉넉할 때(10GB 이상)만 그래픽카드를 쓴다:
+ * 그보다 작으면 대화 모델과 AI 음성이 그 자리를 더 필요로 하고, 음성 인식은 CPU에서도 한 문장에 몇 초면 된다.
+ */
+function sttDevice() {
+  const env = process.env.MALFOID_STT_DEVICE
+  if (env === 'cpu' || env === 'cuda')
+    return env
+  const r = spawnSync('nvidia-smi', ['--query-gpu=memory.total', '--format=csv,noheader,nounits'], { encoding: 'utf8', shell: IS_WINDOWS })
+  const mib = r.status === 0 ? Math.max(0, ...String(r.stdout).split(/\r?\n/).map(Number).filter(Number.isFinite)) : 0
+  return mib >= 10_000 ? 'cuda' : 'cpu'
+}
+
+async function startStt() {
+  const url = sttOrigin(process.env.MALFOID_STT_URL)
+  const health = await sttHealth(url)
+  if (health?.ready) {
+    say(`음성 입력(받아쓰기) 연결됨 (${url})`)
+    return
+  }
+  if (health) {
+    say('음성 입력 서버가 켜지는 중이에요. 준비될 때까지는 브라우저 받아쓰기로 해요')
+    void watchStt(url, null, null)
+    return
+  }
+  if (process.env.MALFOID_STT === 'off') {
+    say('MALFOID_STT=off라서 음성 입력은 브라우저 받아쓰기(크롬·엣지)로 해요')
+    return
+  }
+  const dir = findGptSovits()
+  const python = dir && installedAt(dir) ? pythonOf(dir) : null
+  if (!python) {
+    say('음성 입력: 로컬 음성 인식은 AI 음성(GPT-SoVITS)과 함께 설치돼요. 지금은 브라우저 받아쓰기(크롬·엣지, 인터넷 필요)로 해요')
+    return
+  }
+  if (spawnSync(python, ['-c', 'import faster_whisper'], { stdio: 'ignore', windowsHide: true }).status !== 0) {
+    say(`음성 입력: ${dir}의 Python에 faster-whisper가 없어서 브라우저 받아쓰기로 해요`)
+    return
+  }
+  const device = sttDevice()
+  const model = process.env.MALFOID_STT_MODEL || 'large-v3-turbo'
+  // GPT-SoVITS 화면(WebUI)의 받아쓰기와 같은 곳에 모델을 둔다 (이미 받아 두었으면 다시 받지 않는다)
+  const modelsDir = join(dir, 'tools', 'asr', 'models')
+  const firstTime = !existsSync(model) && !existsSync(join(modelsDir, `faster-whisper-${model}`, 'model.bin'))
+  const logFile = join(dir, 'karina-stt.log')
+  let out
+  try {
+    out = openSync(logFile, 'w')
+  }
+  catch (e) {
+    say(`음성 입력 서버를 준비하지 못해 브라우저 받아쓰기로 해요: ${e.message}`)
+    return
+  }
+  say(`음성 입력(받아쓰기)을 켜는 중… (${device === 'cuda' ? 'NVIDIA GPU' : 'CPU'}, ${model})${firstTime ? ' 처음 한 번 음성 인식 모델(약 1.6GB)을 받아요. 그동안은 브라우저 받아쓰기로 해요' : ''}`)
+  const port = new URL(url).port || '9881'
+  const server = spawn(python, ['-X', 'utf8', join(ROOT, 'scripts', 'stt', 'stt_server.py'), '--port', port, '--model', model, '--models-dir', modelsDir, '--device', device], {
+    cwd: dir,
+    detached: true,
+    stdio: ['ignore', out, out],
+    windowsHide: true,
+  })
+  server.on('error', e => say(`음성 입력 서버를 켜지 못해 브라우저 받아쓰기로 해요: ${e.message}`))
+  server.unref()
+  void watchStt(url, server, logFile)
+}
+
+/** 음성 입력 서버가 모델을 다 올릴 때까지 지켜본다 (처음에는 모델을 받느라 오래 걸린다) */
+async function watchStt(url, server, logFile) {
+  const started = Date.now()
+  let exitCode = null
+  server?.on('exit', (code) => { exitCode = code ?? -1 })
+  while (Date.now() - started < 20 * 60_000) {
+    const health = await sttHealth(url)
+    if (health?.ready) {
+      const secs = Math.round((Date.now() - started) / 1000)
+      say(`\x1B[1m음성 입력 준비 완료\x1B[0m (${secs}초, ${health.device === 'cuda' ? 'GPU' : 'CPU'}). 🎤 버튼을 누르고 말해 보세요`)
+      return
+    }
+    if (exitCode !== null) {
+      say(`음성 입력 서버가 꺼졌어요 (종료 코드 ${exitCode}). 브라우저 받아쓰기로 해요.${logFile ? ` 로그 끝부분 (${logFile}):` : ''}`)
+      if (logFile)
+        console.log(logTail(logFile))
+      return
+    }
+    await sleep(2000)
+  }
+  say(`음성 입력 서버가 20분이 지나도 준비되지 않아 브라우저 받아쓰기로 해요${logFile ? `. 원인은 ${logFile}에서 볼 수 있어요` : ''}`)
 }
 
 function logTail(file, lines = 15) {

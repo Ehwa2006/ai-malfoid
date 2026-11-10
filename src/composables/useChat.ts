@@ -51,6 +51,8 @@ export interface Settings {
   modelUrl: string
   /** 답변 아래에 선택지(이어서 할 말)를 보일지 */
   showChoices: boolean
+  /** 말로 하기: 알아들은 말을 바로 보낼지 (끄면 입력칸에 넣어 고친 뒤 보낸다) */
+  voiceInput: { autoSend: boolean }
   tts: TtsSettings
 }
 
@@ -81,6 +83,7 @@ const DEFAULT_SETTINGS: Settings = {
   avatarMode: 'vrm',
   modelUrl: '',
   showChoices: true,
+  voiceInput: { autoSend: true },
   tts: {
     enabled: true,
     provider: 'gsv',
@@ -125,6 +128,7 @@ export function useChat() {
   // 이전 버전에서 저장된 설정에 새 항목의 기본값을 채운다
   settings.value = { ...DEFAULT_SETTINGS, ...settings.value }
   settings.value.tts = { ...DEFAULT_SETTINGS.tts, ...settings.value.tts }
+  settings.value.voiceInput = { ...DEFAULT_SETTINGS.voiceInput, ...settings.value.voiceInput }
   settings.value.tts.openai = { ...DEFAULT_SETTINGS.tts.openai, ...settings.value.tts.openai }
   // 컨텍스트(NUM_CTX)에 들어가는 만큼만 (이전 버전은 60까지 고를 수 있었다)
   settings.value.historyLimit = Math.min(MAX_HISTORY, Math.max(4, settings.value.historyLimit))

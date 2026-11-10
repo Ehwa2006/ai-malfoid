@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { edgeTts } from './server/edgeTts'
 import { gptSovits } from './server/gptSovits'
+import { stt } from './server/stt'
 import { vrApi } from './server/vrApi'
 
 /** OLLAMA_HOST 값("0.0.0.0", "127.0.0.1:11434", "http://host:port")을 접속 주소로 바꾼다 (Ollama와 같은 해석) */
@@ -24,6 +25,8 @@ export default defineConfig(({ mode }) => {
       edgeTts(),
       // AI 음성: GPT-SoVITS api_v2 주소는 GPT_SOVITS_URL로 바꿀 수 있다 (기본 127.0.0.1:9880)
       gptSovits({ packFile: env.MALFOID_VOICE_PACK || 'voices/karina/voice.json', url: env.GPT_SOVITS_URL }),
+      // 음성 입력(받아쓰기): faster-whisper 서버 주소는 MALFOID_STT_URL로 바꿀 수 있다 (기본 127.0.0.1:9881)
+      stt({ url: env.MALFOID_STT_URL }),
       // VR 앱(유니티, unity/MalfoidVR)이 쓰는 대화 API. 모델은 MALFOID_MODEL로 바꿀 수 있다
       vrApi({ ollama: ollamaTarget, model: env.MALFOID_MODEL }),
     ],
