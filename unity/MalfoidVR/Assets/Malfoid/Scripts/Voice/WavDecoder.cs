@@ -42,6 +42,37 @@ namespace Malfoid
             return null;
         }
 
+        /// <summary>마이크 녹음(-1~1)을 16비트 PCM WAV로 (음성 입력을 서버로 보낼 때)</summary>
+        public static byte[] Encode(float[] samples, int count, int channels, int rate)
+        {
+            count = Mathf.Clamp(count, 0, samples.Length);
+            var dataBytes = count * 2;
+            var wav = new byte[44 + dataBytes];
+            void Tag(int at, string s) => System.Text.Encoding.ASCII.GetBytes(s, 0, 4, wav, at);
+            void U32(int at, int v) { wav[at] = (byte)v; wav[at + 1] = (byte)(v >> 8); wav[at + 2] = (byte)(v >> 16); wav[at + 3] = (byte)(v >> 24); }
+            void U16(int at, int v) { wav[at] = (byte)v; wav[at + 1] = (byte)(v >> 8); }
+            Tag(0, "RIFF");
+            U32(4, 36 + dataBytes);
+            Tag(8, "WAVE");
+            Tag(12, "fmt ");
+            U32(16, 16);
+            U16(20, 1);
+            U16(22, channels);
+            U32(24, rate);
+            U32(28, rate * channels * 2);
+            U16(32, channels * 2);
+            U16(34, 16);
+            Tag(36, "data");
+            U32(40, dataBytes);
+            for (var i = 0; i < count; i++)
+            {
+                var v = (short)Mathf.Clamp(Mathf.RoundToInt(samples[i] * 32767f), short.MinValue, short.MaxValue);
+                wav[44 + i * 2] = (byte)v;
+                wav[45 + i * 2] = (byte)(v >> 8);
+            }
+            return wav;
+        }
+
         static AudioClip Build(byte[] wav, int start, int length, int channels, int rate, int bits, int format, string name)
         {
             if (rate <= 0)

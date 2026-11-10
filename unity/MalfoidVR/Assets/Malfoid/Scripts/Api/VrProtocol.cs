@@ -90,6 +90,25 @@ namespace Malfoid
         public string url;
     }
 
+    /// <summary>GET /stt/status (음성 입력: 로컬 음성 인식)</summary>
+    [Serializable]
+    public class SttStatus
+    {
+        public bool server;
+        public bool starting;
+        public string url;
+        public string device;
+    }
+
+    /// <summary>POST /stt 의 대답</summary>
+    [Serializable]
+    public class SttResult
+    {
+        public string text;
+        public float seconds;
+        public float took;
+    }
+
     [Serializable]
     public class SayRequest
     {

@@ -113,7 +113,7 @@ namespace Malfoid
 
         void UpdateSystemLine(string voiceName)
         {
-            var input = VoiceInput.Available ? "A/X를 누른 채 말하기" : "선택지를 고르거나 키보드로";
+            var input = VoiceInput.Available ? $"A/X를 누른 채 말하기 ({VoiceInput.Mode})" : "선택지를 고르거나 키보드로";
             status?.SetSystem($"모델: {model}\n음성: {voiceName} · {input}");
         }
 

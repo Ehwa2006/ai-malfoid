@@ -150,6 +150,33 @@ namespace Malfoid
                 ok?.Invoke(clip);
         }
 
+        /// <summary>
+        /// 녹음(WAV)을 로컬 음성 인식(/stt, faster-whisper)으로 받아쓴다. 알아듣지 못했으면 빈 글.
+        /// </summary>
+        public IEnumerator Transcribe(byte[] wav, Action<string> ok, Action<string> fail)
+        {
+            var upload = new UploadHandlerRaw(wav) { contentType = "audio/wav" };
+            using var req = new UnityWebRequest(Base + "/stt", "POST", new DownloadHandlerBuffer(), upload);
+            req.timeout = 120;
+            yield return req.SendWebRequest();
+            if (req.result != UnityWebRequest.Result.Success)
+            {
+                fail?.Invoke(ErrorOf(req));
+                yield break;
+            }
+            SttResult result;
+            try
+            {
+                result = JsonUtility.FromJson<SttResult>(req.downloadHandler.text);
+            }
+            catch (ArgumentException e)
+            {
+                fail?.Invoke(e.Message);
+                yield break;
+            }
+            ok?.Invoke(result?.text ?? "");
+        }
+
         /// <summary>받는 대로 줄을 잘라 사건으로 바꾼다. UTF-8 글자가 조각 사이에 걸려도 깨지지 않게 디코더를 이어 쓴다</summary>
         class NdjsonHandler : DownloadHandlerScript
         {

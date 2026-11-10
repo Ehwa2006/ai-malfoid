@@ -43,7 +43,7 @@ VR에서 카리나 말포이와 마주 앉아 이야기하는 유니티 앱이�
 | | VR | 데스크톱 모드 |
 |---|---|---|
 | 둘러보기·걷기 | 머리를 돌리고 걷는다 · 왼쪽 스틱 걷기 · 오른쪽 스틱 45도 돌기 | 오른쪽 마우스 버튼 + 끌기 · WASD |
-| 말하기 | **A/X를 누른 채 말하고 떼기** (윈도우) · 선택지 가리키고 트리거 | 화면 아래 입력칸에 쓰고 Enter · V를 누른 채 말하기 |
+| 말하기 | **A/X를 누른 채 말하고 떼기** · 선택지 가리키고 트리거 | 화면 아래 입력칸에 쓰고 Enter · V를 누른 채 말하기 |
 | 버튼 | 컨트롤러 광선으로 가리키고 트리거 | 왼쪽 클릭 |
 | 정면 맞추기 | 오른손 B · 상태 판의 버튼 | — |
 
@@ -72,8 +72,9 @@ VR에서 카리나 말포이와 마주 앉아 이야기하는 유니티 앱이�
 웹 앱과 같은 순서로 고른다: **AI 음성**(GPT-SoVITS, 감정별 목소리, `npm start`가 켠다) → 안 되면 **Edge 음성** → 그것도 안 되면 자막만.
 소리는 카리나의 머리에서 나는 3D 소리라서 고개를 돌리면 방향이 바뀐다. 입 모양은 소리 크기를 따라간다.
 
-목소리로 말 걸기는 **윈도우 받아쓰기**를 쓴다: 윈도우 설정 ▸ 개인 정보 ▸ 음성 ▸ **온라인 음성 인식 켜기**, 음성 언어 한국어.
-Quest 단독 실행에서는 선택지와 (모니터 앞의) 키보드로 말한다.
+목소리로 말 걸기는 웹 앱과 같은 **로컬 음성 인식**(faster-whisper, `npm start`가 켠다)을 쓴다. A/X를 누른 채 말하면 마이크로 녹음하고,
+떼면 서버의 `/stt`로 보내 알아듣는다. 인터넷이 필요 없고 Quest 단독 실행에서도 된다(처음에 마이크 권한을 묻는다). 말하기 시작하면 카리나의 목소리를 멈춘다.
+로컬 음성 인식이 꺼져 있으면 윈도우 PC VR에서는 **윈도우 받아쓰기**로 대신한다: 윈도우 설정 ▸ 개인 정보 ▸ 음성 ▸ **온라인 음성 인식 켜기**, 음성 언어 한국어.
 
 ## Quest 단독 실행 (Android 빌드)
 
@@ -92,7 +93,7 @@ Assets/Malfoid/
     Api/        MalfoidServer (HTTP·줄 단위 JSON 스트림), VrProtocol (서버와 주고받는 자료)
     Avatar/     KarinaAvatar (몸짓·IK·고개·소품·돌아서기), KarinaFace (표정·깜빡임·입·홍조),
                 NormalizedRig (three-vrm 정규화 본 흉내), ArmIK (src/three/ik.ts 이식), PoseTypes
-    Voice/      KarinaVoice (문장 대기열·미리 받기·3D 소리), WavDecoder, VoiceInput (윈도우 받아쓰기)
+    Voice/      KarinaVoice (문장 대기열·미리 받기·3D 소리), WavDecoder, VoiceInput (누른 채 말하기: 녹음 → /stt, 없으면 윈도우 받아쓰기)
     Interaction/ KarinaInteractions (쓰다듬기·콕·손·안기·손 흔들기·선물·빤히 보기), HandProbe (VR 손), Grabbable (선물)
     UI/         DialoguePanel (대사·속마음·선택지), StatusPanel (호감도·장소·알림), VrButton, WorldUi
     Rig/        PlayerRig (VR·데스크톱), VrInput, DesktopControls, ChatBox
@@ -111,6 +112,7 @@ Assets/Malfoid/
 | `POST /vr/greet` | 오랜만이면 먼저 인사 |
 | `POST /vr/settings` `{userName}` · `POST /vr/reset` | 이름 바꾸기 · 처음부터 |
 | `POST /tts/gsv` · `POST /tts/v1/audio/speech` | AI 음성 · Edge 음성 (웹 앱과 같은 경로) |
+| `POST /stt` (WAV) · `GET /stt/status` | 음성 입력: 로컬 음성 인식 (웹 앱과 같은 경로) |
 
 VR 대화는 웹 앱(브라우저 저장소)과 따로 `.malfoid/vr-session.json`에 저장된다.
 
