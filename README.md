@@ -196,6 +196,25 @@ npm.cmd run voice:install -- --dir D:\AI
 - 바꾸기: `MALFOID_STT_DEVICE=cpu|cuda`, `MALFOID_STT_MODEL=small`(빠르지만 덜 정확), 끄기: `MALFOID_STT=off`.
 - 카리나 세계의 이름(말포이, 호그와트, 퀴디치…)을 바르게 받아쓰도록 앞 문맥을 줍니다. 조용하거나 잡음만 있으면 아무것도 보내지 않고, Whisper가 잡음에서 지어내는 "시청해 주셔서 감사합니다" 같은 문장도 거릅니다.
 
+## 클로드 앱에서 가볍게 써 보기
+
+설치 없이 카리나와 몇 마디 나눠 보고 싶을 때 쓰는 시험판입니다. Claude 앱(claude.ai)의 아티팩트 페이지로 열리고, 휴대폰에서도 됩니다.
+
+- 대답은 Ollama 대신 **Claude**가 합니다. 페이지가 보는 사람의 Claude 계정으로 묻기 때문에, 처음 말을 보낼 때 Claude 사용을 허락할지 물어봅니다.
+- 대화 흐름은 앱과 같은 `server/chatSession.ts`입니다: 같은 성격·말투 프롬프트, 성적인 말 거절 메모, 호감도(한 턴 ±5, 거절하는 턴에는 오르지 않음), 단계 이벤트, 장기 기억, 장소, 선택지.
+- 2D 초상화(`KarinaPortrait.vue`), 선물·다가가기, 속마음 엿보기가 들어 있습니다. 대화와 호감도는 그 브라우저에만 저장됩니다.
+- 읽어 주기는 Claude 음성이고(카리나의 GPT-SoVITS 목소리가 아닙니다), 말로 하기는 Claude 받아쓰기입니다. 둘 다 되는 곳(크롬 계열 브라우저, 데스크톱 앱)에서만 버튼이 보입니다.
+- 설정에서 대답 속도를 고릅니다: 빠르게(바로 대답) / 꼼꼼하게(생각한 뒤 대답해서 느림).
+
+페이지는 저장소의 코드로 만듭니다. 성격이나 규칙을 고쳤으면 다시 빌드해서 아티팩트를 다시 올리세요.
+
+```bash
+npm run artifact   # → dist-artifact/karina.html (JS·CSS를 넣은 HTML 한 장)
+```
+
+소스는 `artifact/`에 있습니다: `App.vue`(화면), `claudeChat.ts`(ChatSession의 메시지를 Claude에게 보내는 모양으로 바꾸기, 실패 안내).
+페이지는 아티팩트로 올릴 때 `sample`(Claude에게 묻기), `tts`(읽어 주기), `dictation`(받아쓰기) 기능을 선언해야 합니다.
+
 ## 3D 모델
 
 ### 기본 모델: Malfoy Draconia (VRM)
@@ -302,6 +321,7 @@ server/stt.ts              # 개발 서버에 붙는 음성 입력 (/stt → fas
 server/chatSession.ts      # 화면 없이 돌아가는 대화 세션 (앱과 같은 흐름: 평가와 VR이 쓴다)
 scripts/eval/              # 실제 모델 평가: 대화 목록(scenarios), 판정 규칙(checks), 실행기(runner), npm run eval
 scripts/stt/stt_server.py  # faster-whisper 받아쓰기 서버 (표준 라이브러리만, npm start가 켠다)
+artifact/                  # 클로드 앱 시험판 (npm run artifact): 같은 ChatSession을 Claude로 돌리는 페이지 한 장
 ```
 
 ## 확장 아이디어 (AIRI 쪽 기능 더 가져오기)
@@ -315,6 +335,7 @@ scripts/stt/stt_server.py  # faster-whisper 받아쓰기 서버 (표준 라이�
 npm test          # 단위 테스트 (답변 파서, 페르소나·거절 판별, 한국어 읽기, 음성 입력, 평가 판정 규칙…)
 npm run build     # 타입 체크 + 프로덕션 빌드
 npm run eval      # 실제 모델로 정해 둔 대화를 돌려 판정하고 보고서를 남긴다 (아래)
+npm run artifact  # 클로드 앱 시험판 페이지 빌드 (위의 "클로드 앱에서 가볍게 써 보기")
 ```
 
 올릴 때마다 GitHub Actions가 `npm test`와 `npm run build`를 돌립니다 (`.github/workflows/ci.yml`).

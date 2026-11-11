@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit && tsc -p tsconfig.node.json",
     "test": "vitest run",
-    "eval": "node scripts/eval/run.mjs"
+    "eval": "node scripts/eval/run.mjs",
+    "artifact": "vite build -c vite.artifact.config.ts"
   },
   "dependencies": {
     "@pixiv/three-vrm": "^3.5.5",

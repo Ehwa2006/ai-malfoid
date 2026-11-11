@@ -7,3 +7,4 @@ __pycache__/
 scripts/gpt-sovits/.install-dir
 scripts/gpt-sovits/.declined
 .malfoid/
+dist-artifact

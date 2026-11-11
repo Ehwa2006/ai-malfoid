@@ -1,0 +1,75 @@
+/* 아티팩트 페이지의 색: 밝은 화면은 양피지와 에메랄드, 어두운 화면은 앱과 같은 슬리데린 녹색 */
+:root {
+  color-scheme: light;
+  --bg: #f3efe6;
+  --surface: #fffcf6;
+  --surface-2: #e9e3d6;
+  --text: #1c2320;
+  --text-dim: #5b655e;
+  --line: rgb(28 35 32 / 0.13);
+  --accent: #1d7348;
+  --accent-ink: #ffffff;
+  --accent-soft: rgb(29 115 72 / 0.12);
+  --bubble-k: #fffcf6;
+  --bubble-u: #d9e7dd;
+  --thought: #f1ecf7;
+  --thought-ink: #4f456b;
+  --up: #1d7348;
+  --down: #b0413a;
+  --shadow: 0 1px 2px rgb(28 35 32 / 0.08), 0 6px 18px rgb(28 35 32 / 0.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0b130f;
+    --surface: #121d17;
+    --surface-2: #1a2820;
+    --text: #ecefe9;
+    --text-dim: #a3b0a8;
+    --line: rgb(255 255 255 / 0.1);
+    --accent: #34a868;
+    --accent-ink: #06130c;
+    --accent-soft: rgb(52 168 104 / 0.16);
+    --bubble-k: #17251d;
+    --bubble-u: #26362e;
+    --thought: #221f33;
+    --thought-ink: #c9c0e8;
+    --up: #5fd08f;
+    --down: #f08a80;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b130f;
+  --surface: #121d17;
+  --surface-2: #1a2820;
+  --text: #ecefe9;
+  --text-dim: #a3b0a8;
+  --line: rgb(255 255 255 / 0.1);
+  --accent: #34a868;
+  --accent-ink: #06130c;
+  --accent-soft: rgb(52 168 104 / 0.16);
+  --bubble-k: #17251d;
+  --bubble-u: #26362e;
+  --thought: #221f33;
+  --thought-ink: #c9c0e8;
+  --up: #5fd08f;
+  --down: #f08a80;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.6 system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
