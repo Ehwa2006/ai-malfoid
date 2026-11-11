@@ -2,8 +2,9 @@
 // 클로드 앱 안에서 가볍게 시험해 보는 카리나 채팅.
 // 대화 흐름은 앱·VR·평가와 같은 ChatSession이고, 모델만 Ollama 대신 Claude(sample)다.
 // 목소리는 Claude 음성(tts), 말로 하기는 Claude 받아쓰기(dictation)를 쓴다 (안 되는 곳에서는 버튼을 숨긴다).
+// 아바타는 앱의 기본 3D 모델(Malfoy Draconia VRM)이다. 모델 파일은 페이지 옆에 함께 올린다 (modelFile.ts).
 import { computed, nextTick, onMounted, reactive, ref, shallowRef, watch } from 'vue'
-import KarinaPortrait from '../src/components/portrait/KarinaPortrait.vue'
+import Avatar3D from '../src/components/Avatar3D.vue'
 import { ChatSession, type SessionEvent, type SessionMessage, type SessionState } from '../server/chatSession'
 import { STAGES, stageOf } from '../src/lib/affection'
 import { GIFTS, TOUCHES, type Interaction } from '../src/lib/interactions'
@@ -13,6 +14,7 @@ import { toSegments } from '../src/lib/reply'
 import { SCENE_INFO, type Scene } from '../src/lib/scenes'
 import type { Dictation, Tts, Voice } from './claude-runtime'
 import { claudeChat, isPermanent, type ModelTier, type SampleFn } from './claudeChat'
+import { fetchModel } from './modelFile'
 
 // ── 저장 (이 브라우저에만. 막혀 있어도 페이지는 돌아간다) ──
 const STATE_KEY = 'karina-artifact:state'
@@ -235,6 +237,21 @@ function toggleThought(at: number) {
   openThoughts.value = next
 }
 
+// ── 3D 모델 ──
+/** 받아 둔 모델의 blob 주소. 받기 전에는 아바타를 그리지 않는다 (없으면 간이 모델이 대신 나오므로) */
+const modelUrl = ref<string | null>(null)
+const modelError = ref('')
+async function loadModel() {
+  modelError.value = ''
+  try {
+    modelUrl.value = await fetchModel()
+  }
+  catch (e) {
+    modelError.value = `3D 모델을 불러오지 못했어요: ${(e as Error).message}`
+  }
+}
+void loadModel()
+
 // ── 선물·다가가기 ──
 const giftDialog = ref<HTMLDialogElement>()
 const locked = (item: Interaction) => (item.minAffection ?? 0) > affection.value
@@ -399,16 +416,32 @@ const VOICES: { id: Voice, label: string }[] = [
   <div class="app">
     <aside class="side">
       <div class="portrait-wrap">
-        <KarinaPortrait
+        <Avatar3D
+          v-if="modelUrl"
           :emotion="emotion"
           :speaking="ttsState === 'speaking'"
+          :model-url="modelUrl"
           :scene="scene"
           :affection="affection"
           :reaction="reaction"
           :thinking="thinking"
           interactive
+          @error="modelError = $event"
           @touch="onPortraitTouch"
         />
+        <div v-else class="card-placeholder">
+          <span v-if="!modelError">모델 불러오는 중…</span>
+          <button v-else type="button" class="link" @click="loadModel">
+            다시 불러오기
+          </button>
+        </div>
+        <p v-if="modelError" class="model-error">
+          {{ modelError }}
+        </p>
+        <p class="credit">
+          3D 모델: <a href="https://sketchfab.com/3d-models/harry-potter-malfoy-draconia-3d-model-dl-49a0f6d87e7b4079a6a6a5b15768e627" target="_blank" rel="noopener">"Malfoy Draconia" by HiGuys920</a>
+          · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> · VRM 변환
+        </p>
       </div>
       <div class="status">
         <div class="name-row">
@@ -429,6 +462,9 @@ const VOICES: { id: Voice, label: string }[] = [
         <p class="meta">
           <span>{{ sceneInfo.label }}</span>
           <span v-if="nextStage" class="dim"> · {{ nextStage.min }}부터 {{ nextStage.name }}</span>
+        </p>
+        <p class="credit credit-m">
+          3D 모델 <a href="https://sketchfab.com/3d-models/harry-potter-malfoy-draconia-3d-model-dl-49a0f6d87e7b4079a6a6a5b15768e627" target="_blank" rel="noopener">"Malfoy Draconia" by HiGuys920</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>
         </p>
         <div class="tools">
           <button type="button" class="tool" :disabled="busy || !canTalk" @click="giftDialog?.showModal()">
@@ -665,15 +701,34 @@ const VOICES: { id: Voice, label: string }[] = [
 .portrait-wrap {
   width: 100%;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
   --portrait-max: 300px;
 }
-/* 밝은 화면에서는 초상화 그림자를 옅게 */
-.portrait-wrap :deep(.portrait) { box-shadow: 0 10px 28px rgb(20 30 25 / 0.22), inset 0 0 0 1px rgb(255 255 255 / 0.08); }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .portrait-wrap :deep(.portrait) { box-shadow: 0 18px 40px rgb(0 0 0 / 0.5), inset 0 0 0 1px rgb(255 255 255 / 0.08); }
+.credit, .model-error { margin: 0; font-size: 11px; color: var(--text-dim); text-align: center; max-width: 300px; }
+.credit a { color: inherit; }
+.card-placeholder {
+  width: 100%;
+  max-width: var(--portrait-max, 300px);
+  aspect-ratio: 300 / 390;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 13px;
+  text-align: center;
+  padding: 8px;
 }
-:root[data-theme="dark"] .portrait-wrap :deep(.portrait) { box-shadow: 0 18px 40px rgb(0 0 0 / 0.5), inset 0 0 0 1px rgb(255 255 255 / 0.08); }
+.credit-m { display: none; }
+.model-error { color: var(--down); font-size: 12px; }
+/* 밝은 화면에서는 초상화 그림자를 옅게 */
+.portrait-wrap :deep(.card) { box-shadow: 0 10px 28px rgb(20 30 25 / 0.22), inset 0 0 0 1px rgb(255 255 255 / 0.08); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .portrait-wrap :deep(.card) { box-shadow: 0 18px 40px rgb(0 0 0 / 0.5), inset 0 0 0 1px rgb(255 255 255 / 0.08); }
+}
+:root[data-theme="dark"] .portrait-wrap :deep(.card) { box-shadow: 0 18px 40px rgb(0 0 0 / 0.5), inset 0 0 0 1px rgb(255 255 255 / 0.08); }
 .status { width: 100%; max-width: 300px; }
 .name-row { display: flex; align-items: center; gap: 10px; }
 h1 {
@@ -927,8 +982,11 @@ h3 { margin: 14px 0 8px; font-size: 13.5px; color: var(--text-dim); font-weight:
     padding-bottom: 0;
     overflow: visible;
   }
-  .portrait-wrap { width: auto; flex: none; --portrait-max: min(116px, 18dvh); }
-  .portrait-wrap :deep(.portrait) { width: min(116px, 18dvh); }
+  .portrait-wrap { width: auto; flex: none; --portrait-max: min(132px, 22dvh); }
+  .portrait-wrap .credit { display: none; }
+  .credit-m { display: block; text-align: left; margin: -4px 0 8px; font-size: 10.5px; }
+  .model-error { max-width: 132px; }
+  .portrait-wrap :deep(.card), .card-placeholder { width: min(132px, 22dvh); }
   .status { min-width: 0; }
   h1 { font-size: 18px; }
   .tagline { display: none; }

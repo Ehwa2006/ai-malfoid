@@ -19,6 +19,7 @@
   "include": [
     "server/**/*.ts",
     "scripts/eval/**/*.ts",
+    "artifact/**/*.test.ts",
     "vite.config.ts",
     "vite.artifact.config.ts"
   ]

@@ -202,7 +202,7 @@ npm.cmd run voice:install -- --dir D:\AI
 
 - 대답은 Ollama 대신 **Claude**가 합니다. 페이지가 보는 사람의 Claude 계정으로 묻기 때문에, 처음 말을 보낼 때 Claude 사용을 허락할지 물어봅니다.
 - 대화 흐름은 앱과 같은 `server/chatSession.ts`입니다: 같은 성격·말투 프롬프트, 성적인 말 거절 메모, 호감도(한 턴 ±5, 거절하는 턴에는 오르지 않음), 단계 이벤트, 장기 기억, 장소, 선택지.
-- 2D 초상화(`KarinaPortrait.vue`), 선물·다가가기, 속마음 엿보기가 들어 있습니다. 대화와 호감도는 그 브라우저에만 저장됩니다.
+- 아바타는 앱의 기본 3D 모델(Malfoy Draconia VRM, `Avatar3D.vue`)이고, 선물·다가가기, 속마음 엿보기가 들어 있습니다. 대화와 호감도는 그 브라우저에만 저장됩니다.
 - 읽어 주기는 Claude 음성이고(카리나의 GPT-SoVITS 목소리가 아닙니다), 말로 하기는 Claude 받아쓰기입니다. 둘 다 되는 곳(크롬 계열 브라우저, 데스크톱 앱)에서만 버튼이 보입니다.
 - 설정에서 대답 속도를 고릅니다: 빠르게(바로 대답) / 꼼꼼하게(생각한 뒤 대답해서 느림).
 
@@ -210,9 +210,12 @@ npm.cmd run voice:install -- --dir D:\AI
 
 ```bash
 npm run artifact   # → dist-artifact/karina.html (JS·CSS를 넣은 HTML 한 장)
+                   #   dist-artifact/models/malfoy-draconia.vrm.txt (3D 모델)
 ```
 
-소스는 `artifact/`에 있습니다: `App.vue`(화면), `claudeChat.ts`(ChatSession의 메시지를 Claude에게 보내는 모양으로 바꾸기, 실패 안내).
+아티팩트는 .vrm(glb) 파일을 올려 주지 않아서, 모델을 base64 글자 파일(.txt)로 바꿔 페이지 옆에 함께 올립니다. 페이지가 이 파일을 받아 다시 바이트로 되돌려 씁니다(`artifact/modelFile.ts`). 두 파일을 같은 아티팩트에 `models/malfoy-draconia.vrm.txt` 경로로 함께 올려야 합니다.
+
+소스는 `artifact/`에 있습니다: `App.vue`(화면), `claudeChat.ts`(ChatSession의 메시지를 Claude에게 보내는 모양으로 바꾸기, 실패 안내), `modelFile.ts`(3D 모델 파일 받기).
 페이지는 아티팩트로 올릴 때 `sample`(Claude에게 묻기), `tts`(읽어 주기), `dictation`(받아쓰기) 기능을 선언해야 합니다.
 
 ## 3D 모델
