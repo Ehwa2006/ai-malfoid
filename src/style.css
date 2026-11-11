@@ -1,0 +1,40 @@
+:root {
+  --bg: #0c1410;
+  --panel: #121d17;
+  --bubble-draco: #17251d;
+  --bubble-user: #2b3a33;
+  --text: #ecefe9;
+  --text-dim: #a3b0a8;
+  --silver: #d6d6d6;
+  --accent: #2a9d5c;
+  color-scheme: dark;
+  font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body, #app { height: 100%; margin: 0; }
+body {
+  background:
+    radial-gradient(ellipse at top, #1a472a55, transparent 60%),
+    var(--bg);
+  color: var(--text);
+}
+button {
+  font: inherit;
+  color: var(--text);
+  background: var(--accent);
+  border: none;
+  border-radius: 10px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.ghost { background: transparent; color: var(--text-dim); }
+input, select, textarea {
+  font: inherit;
+  color: var(--text);
+  background: rgb(255 255 255 / 0.06);
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+input[type='range'] { padding: 0; accent-color: var(--accent); }
